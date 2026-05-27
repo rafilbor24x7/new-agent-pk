@@ -5,8 +5,8 @@
 ## ТЕКУЩИЙ СТАТУС
 
 **Фаза:** Bootstrap
-**Последняя задача:** F-101 — Загрузка ЕСКЛП в DuckDB при старте
-**Статус сборки:** ✅ verification_cmd F-101 прошёл (`OK`)
+**Последняя задача:** F-102 — Загрузка списка 295 ПК из data/pk_list.json
+**Статус сборки:** ✅ verification_cmd F-102 прошёл (`OK`)
 **Статус тестов:** ✅ `pytest` прошёл, `ruff check .` чистый
 
 ---
@@ -53,9 +53,18 @@ ruff check .
 - Добавлены тестовые данные `data/esklp_test/tn_smnn_test.xlsx` и тест `tests/test_esklp_lookup.py`.
 
 **Результат:** F-101 passing.
+
+### F-102 — Загрузка списка 295 ПК из data/pk_list.json
+
+- Добавлен сервис `app.services.pk_list.load_pk_list()` с Pydantic-валидацией `{tg, tk, pk}`.
+- Подключён router `app.api.tools` в `app.main`.
+- Реализован `GET /tools/pk_list`, возвращающий локальный список из 295 ПК.
+- Реальный `data/pk_list.json` остаётся локальным и не коммитится.
+
+**Результат:** F-102 passing.
 ## СЛЕДУЮЩИЙ ШАГ
 
-**Задача:** F-102 — Загрузка списка 295 ПК из data/pk_list.json
+**Задача:** F-201 — POST /tools/search_esklp
 
 **Что сделать:**`n1. Создать Web Service на Render.`n2. Подставить публичный `RENDER_URL`.`n3. Проверить `GET https://<RENDER_URL>/health`.
 
