@@ -5,8 +5,8 @@
 ## ТЕКУЩИЙ СТАТУС
 
 **Фаза:** Bootstrap
-**Последняя задача:** F-102 — Загрузка списка 295 ПК из data/pk_list.json
-**Статус сборки:** ✅ verification_cmd F-102 прошёл (`OK`)
+**Последняя задача:** F-201 — POST /tools/search_esklp
+**Статус сборки:** ✅ verification_cmd F-201 прошёл (`OK`)
 **Статус тестов:** ✅ `pytest` прошёл, `ruff check .` чистый
 
 ---
@@ -62,9 +62,18 @@ ruff check .
 - Реальный `data/pk_list.json` остаётся локальным и не коммитится.
 
 **Результат:** F-102 passing.
+
+### F-201 — POST /tools/search_esklp
+
+- Добавлен Pydantic-вход `SearchEsklpRequest`.
+- Реализован `POST /tools/search_esklp` поверх `EsklpLookup`.
+- Endpoint возвращает список кандидатов с `mnn`, `form`, `dosage`, `score`.
+- Добавлен тест инструмента через `TestClient`.
+
+**Результат:** F-201 passing.
 ## СЛЕДУЮЩИЙ ШАГ
 
-**Задача:** F-201 — POST /tools/search_esklp
+**Задача:** F-203 — POST /tools/parse_offer
 
 **Что сделать:**`n1. Создать Web Service на Render.`n2. Подставить публичный `RENDER_URL`.`n3. Проверить `GET https://<RENDER_URL>/health`.
 
