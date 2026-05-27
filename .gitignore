@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.tmp/
+.env
+metrics.db
+*.duckdb
+~$*.xlsx
+pytest-cache-files-*/
+data/esklp_*/
+/esklp_*/
+/pk_list.json
+/category.xlsx
+/base_sample.xlsx
+data/pk_list.json

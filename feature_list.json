@@ -1,0 +1,244 @@
+{
+    "_meta":  {
+                  "project":  "new-agent-pk",
+                  "version":  "1.0",
+                  "description":  "Список задач. Статус passing нельзя выставить без verification_cmd.",
+                  "statuses":  {
+                                   "not_started":  "Не начата",
+                                   "active":  "В работе (только 1 одновременно)",
+                                   "blocked":  "Заблокирована",
+                                   "passing":  "Выполнена и верифицирована"
+                               },
+                  "rules":  [
+                                "WIP=1: одновременно активна только одна задача",
+                                "passing только после verification_cmd",
+                                "Не начинать задачу если есть незавершённая active"
+                            ]
+              },
+    "phases":  [
+                   {
+                       "id":  "phase-1",
+                       "name":  "Bootstrap",
+                       "description":  "Инфраструктура, структура проекта, деплой.",
+                       "features":  [
+                                        {
+                                            "id":  "F-001",
+                                            "title":  "Репозиторий, зависимости, структура папок",
+                                            "behavior":  "Проект устанавливается одной командой. Структура соответствует ARCHITECTURE.md.",
+                                            "verification_cmd":  "pip install -r requirements.txt \u0026\u0026 python -c \u0027import fastapi, pandas, openpyxl, duckdb, openai, rapidfuzz; print(\"OK\")\u0027",
+                                            "expected_output":  "OK",
+                                            "status":  "passing",
+                                            "priority":  "critical",
+                                            "depends_on":  [
+
+                                                           ],
+                                            "notes":  "Скопировать services/parser_offer.py, normalizer.py, matcher.py, excel_builder.py, models/sku.py из ../agentKP"
+                                        },
+                                        {
+                                            "id":  "F-002",
+                                            "title":  "FastAPI backend, GET /health",
+                                            "behavior":  "uvicorn запускается без ошибок. GET /health → {\"status\": \"ok\"}",
+                                            "verification_cmd":  "uvicorn app.main:app --port 8000 \u0026 sleep 2 \u0026\u0026 curl -s http://localhost:8000/health",
+                                            "expected_output":  "{\"status\":\"ok\"}",
+                                            "status":  "not_started",
+                                            "priority":  "critical",
+                                            "depends_on":  [
+                                                               "F-001"
+                                                           ],
+                                            "notes":  "Настроить CORS для Яндекс Студии"
+                                        },
+                                        {
+                                            "id":  "F-003",
+                                            "title":  "Деплой на Render, публичный URL",
+                                            "behavior":  "GET https://\u003crender-url\u003e/health → {\"status\": \"ok\"}",
+                                            "verification_cmd":  "curl -s https://\u003cRENDER_URL\u003e/health",
+                                            "expected_output":  "{\"status\":\"ok\"}",
+                                            "status":  "not_started",
+                                            "priority":  "critical",
+                                            "depends_on":  [
+                                                               "F-002"
+                                                           ],
+                                            "notes":  "Создать новый Web Service на Render. URL подставить после деплоя."
+                                        }
+                                    ]
+                   },
+                   {
+                       "id":  "phase-2",
+                       "name":  "Данные и справочники",
+                       "description":  "Загрузка ЕСКЛП и списка ПК.",
+                       "features":  [
+                                        {
+                                            "id":  "F-101",
+                                            "title":  "Загрузка ЕСКЛП в DuckDB при старте",
+                                            "behavior":  "esklp_lookup.py читает tn_smnn_*.xlsx из ESKLP_DIR, загружает в DuckDB таблицу esklp_tn. Колонки: trade_name, mnn, form, dosage. Шапка пропускается (skiprows=4).",
+                                            "verification_cmd":  "ESKLP_DIR=data/esklp_test python -c \"from app.services.esklp_lookup import EsklpLookup; e=EsklpLookup(); r=e.search(\u0027Ибупрофен\u0027); assert len(r)\u003e0; print(\u0027OK\u0027)\"",
+                                            "expected_output":  "OK",
+                                            "status":  "not_started",
+                                            "priority":  "critical",
+                                            "depends_on":  [
+                                                               "F-001"
+                                                           ],
+                                            "notes":  "Реальный ЕСКЛП в data/esklp_*/ — не коммитить. Для теста создать минимальный тестовый fixtures/esklp_test/tn_smnn_test.xlsx с 5 строками."
+                                        },
+                                        {
+                                            "id":  "F-102",
+                                            "title":  "Загрузка списка 295 ПК из data/pk_list.json",
+                                            "behavior":  "При старте сервиса список ПК загружается в память. GET /tools/pk_list возвращает список [{tg, tk, pk}] длиной 295.",
+                                            "verification_cmd":  "curl -s http://localhost:8000/tools/pk_list | python -c \"import sys,json; d=json.load(sys.stdin); assert len(d)==295; print(\u0027OK\u0027)\"",
+                                            "expected_output":  "OK",
+                                            "status":  "not_started",
+                                            "priority":  "critical",
+                                            "depends_on":  [
+                                                               "F-002"
+                                                           ],
+                                            "notes":  "pk_list.json заполняет заказчик из основной выгрузки. До получения файла использовать заглушку с 5 ПК."
+                                        }
+                                    ]
+                   },
+                   {
+                       "id":  "phase-3",
+                       "name":  "Инструменты агента",
+                       "description":  "MCP-эндпоинты которые вызывает агент в Яндекс Студии.",
+                       "features":  [
+                                        {
+                                            "id":  "F-201",
+                                            "title":  "POST /tools/search_esklp — поиск МНН по торговому названию",
+                                            "behavior":  "Принимает {trade_name}. Ищет в esklp_tn через rapidfuzz. Возвращает [{mnn, form, dosage, score}] топ-3. Если не найдено — пустой список.",
+                                            "verification_cmd":  "curl -s -X POST http://localhost:8000/tools/search_esklp -H \u0027Content-Type: application/json\u0027 -d \u0027{\"trade_name\": \"Ибупрофен\"}\u0027 | python -c \"import sys,json; d=json.load(sys.stdin); assert len(d)\u003e0; assert \u0027mnn\u0027 in d[0]; print(\u0027OK\u0027)\"",
+                                            "expected_output":  "OK",
+                                            "status":  "not_started",
+                                            "priority":  "critical",
+                                            "depends_on":  [
+                                                               "F-101"
+                                                           ]
+                                        },
+                                        {
+                                            "id":  "F-202",
+                                            "title":  "POST /tools/match_pk — подбор ПК из 295",
+                                            "behavior":  "Принимает {trade_name, mnn, form, dosage}. Сначала fuzzy-match по МНН в pk_list. Если confidence \u003c 0.90 — вызывает LLM с полным списком 295 ПК. Возвращает {pk, tg, tk, confidence, reason, candidates}.",
+                                            "verification_cmd":  "pytest tests/test_tools.py::test_match_pk -v",
+                                            "expected_output":  "PASSED",
+                                            "status":  "not_started",
+                                            "priority":  "critical",
+                                            "depends_on":  [
+                                                               "F-102",
+                                                               "F-201"
+                                                           ],
+                                            "notes":  "В тесте использовать mock LLM. Проверить три случая: лекарство с МНН, БАД без МНН, медизделие."
+                                        },
+                                        {
+                                            "id":  "F-203",
+                                            "title":  "POST /tools/parse_offer — парсинг КП",
+                                            "behavior":  "Принимает {text} или multipart file. Возвращает [{sku_name_raw, mnn, form, dosage, zc, rc, bonus_percent, clarification_questions}]. Использует промпт из старого проекта.",
+                                            "verification_cmd":  "curl -s -X POST http://localhost:8000/tools/parse_offer -H \u0027Content-Type: application/json\u0027 -d \u0027{\"text\": \"Ибупрофен 200мг №20 ЗЦ 45руб\"}\u0027 | python -c \"import sys,json; d=json.load(sys.stdin); assert d[0][\u0027sku_name_raw\u0027]; assert d[0][\u0027zc\u0027]==45; print(\u0027OK\u0027)\"",
+                                            "expected_output":  "OK",
+                                            "status":  "not_started",
+                                            "priority":  "critical",
+                                            "depends_on":  [
+                                                               "F-001"
+                                                           ]
+                                        },
+                                        {
+                                            "id":  "F-204",
+                                            "title":  "POST /tools/build_excel — сборка итогового Excel",
+                                            "behavior":  "Принимает {base_file_id, matched_skus}. Собирает Excel с вкладками по ПК + служебными вкладками. Возвращает {download_url}.",
+                                            "verification_cmd":  "pytest tests/test_tools.py::test_build_excel -v",
+                                            "expected_output":  "PASSED",
+                                            "status":  "not_started",
+                                            "priority":  "critical",
+                                            "depends_on":  [
+                                                               "F-202"
+                                                           ]
+                                        },
+                                        {
+                                            "id":  "F-205",
+                                            "title":  "POST /tools/upload_base — загрузка основной выгрузки",
+                                            "behavior":  "Принимает multipart Excel. Валидирует колонки. Возвращает {file_id, rows, columns_ok}. Файл хранится в памяти сессии по file_id.",
+                                            "verification_cmd":  "curl -s -X POST http://localhost:8000/tools/upload_base -F \u0027file=@tests/fixtures/base_sample.xlsx\u0027 | python -c \"import sys,json; d=json.load(sys.stdin); assert d[\u0027columns_ok\u0027]; print(\u0027OK\u0027)\"",
+                                            "expected_output":  "OK",
+                                            "status":  "not_started",
+                                            "priority":  "critical",
+                                            "depends_on":  [
+                                                               "F-002"
+                                                           ]
+                                        }
+                                    ]
+                   },
+                   {
+                       "id":  "phase-4",
+                       "name":  "MCP-совместимость",
+                       "description":  "Документация и формат ответов совместимые с Яндекс Студией.",
+                       "features":  [
+                                        {
+                                            "id":  "F-301",
+                                            "title":  "OpenAPI схема для всех /tools/* эндпоинтов",
+                                            "behavior":  "GET /openapi.json содержит все /tools/* эндпоинты с описаниями. Яндекс Студия может импортировать схему как MCP-сервер.",
+                                            "verification_cmd":  "curl -s http://localhost:8000/openapi.json | python -c \"import sys,json; d=json.load(sys.stdin); tools=[p for p in d[\u0027paths\u0027] if p.startswith(\u0027/tools/\u0027)]; assert len(tools)\u003e=5; print(\u0027OK\u0027)\"",
+                                            "expected_output":  "OK",
+                                            "status":  "not_started",
+                                            "priority":  "critical",
+                                            "depends_on":  [
+                                                               "F-201",
+                                                               "F-202",
+                                                               "F-203",
+                                                               "F-204",
+                                                               "F-205"
+                                                           ]
+                                        },
+                                        {
+                                            "id":  "F-302",
+                                            "title":  "Все инструменты имеют описания для агента",
+                                            "behavior":  "Каждый /tools/* эндпоинт имеет description в OpenAPI схеме на русском языке — агент в Яндекс Студии понимает когда его вызывать.",
+                                            "verification_cmd":  "curl -s http://localhost:8000/openapi.json | python -c \"import sys,json; d=json.load(sys.stdin); paths=d[\u0027paths\u0027]; missing=[p for p in paths if p.startswith(\u0027/tools/\u0027) and not paths[p].get(\u0027post\u0027,{}).get(\u0027description\u0027)]; assert missing==[], f\u0027No description: {missing}\u0027; print(\u0027OK\u0027)\"",
+                                            "expected_output":  "OK",
+                                            "status":  "not_started",
+                                            "priority":  "high",
+                                            "depends_on":  [
+                                                               "F-301"
+                                                           ]
+                                        }
+                                    ]
+                   },
+                   {
+                       "id":  "phase-5",
+                       "name":  "E2E и приёмка",
+                       "description":  "Финальная проверка всей цепочки.",
+                       "features":  [
+                                        {
+                                            "id":  "F-401",
+                                            "title":  "E2E: цепочка parse → search_esklp → match_pk → build_excel",
+                                            "behavior":  "Последовательный вызов всех инструментов с реальными файлами заказчика. Минимум 3 из 5 SKU получают верную ПК. Excel скачивается и открывается.",
+                                            "verification_cmd":  "pytest tests/test_e2e.py::test_full_pipeline -v",
+                                            "expected_output":  "PASSED",
+                                            "status":  "not_started",
+                                            "priority":  "critical",
+                                            "depends_on":  [
+                                                               "F-301"
+                                                           ],
+                                            "notes":  "Реальные файлы предоставляет заказчик перед началом этой фазы"
+                                        },
+                                        {
+                                            "id":  "F-402",
+                                            "title":  "Финальный чеклист: pytest, ruff, публичный URL",
+                                            "behavior":  "Все тесты зелёные, линтер чистый, Render URL отвечает, OpenAPI схема доступна публично.",
+                                            "verification_cmd":  "pytest \u0026\u0026 ruff check . --no-cache",
+                                            "expected_output":  "passed / All checks passed",
+                                            "status":  "not_started",
+                                            "priority":  "critical",
+                                            "depends_on":  [
+                                                               "F-401"
+                                                           ]
+                                        }
+                                    ]
+                   }
+               ],
+    "summary":  {
+                    "total":  12,
+                    "not_started":  11,
+                    "active":  0,
+                    "blocked":  0,
+                    "passing":  1,
+                    "last_updated":  "2026-05-27",
+                    "note":  "Обновлять после каждой сессии"
+                }
+}
