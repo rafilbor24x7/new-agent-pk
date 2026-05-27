@@ -5,8 +5,8 @@
 ## ТЕКУЩИЙ СТАТУС
 
 **Фаза:** Bootstrap
-**Последняя задача:** F-002 — FastAPI backend, GET /health
-**Статус сборки:** ✅ verification_cmd F-002 прошёл (`{"status":"ok"}`)
+**Последняя задача:** F-101 — Загрузка ЕСКЛП в DuckDB при старте
+**Статус сборки:** ✅ verification_cmd F-101 прошёл (`OK`)
 **Статус тестов:** ✅ `pytest` прошёл, `ruff check .` чистый
 
 ---
@@ -44,9 +44,18 @@ ruff check .
 - `pytest` и `ruff check .` проходят.
 
 **Результат:** F-002 passing.
+
+### F-101 — Загрузка ЕСКЛП в DuckDB при старте
+
+- Реализован `EsklpLookup`: читает `tn_smnn_*.xlsx` из `ESKLP_DIR`, пропускает 4 строки шапки, нормализует колонки `trade_name`, `mnn`, `form`, `dosage`, `smnn_code`.
+- Данные загружаются в in-memory DuckDB таблицу `esklp_tn`.
+- Поиск работает через `rapidfuzz.token_sort_ratio`, возвращает top-3 с `score`.
+- Добавлены тестовые данные `data/esklp_test/tn_smnn_test.xlsx` и тест `tests/test_esklp_lookup.py`.
+
+**Результат:** F-101 passing.
 ## СЛЕДУЮЩИЙ ШАГ
 
-**Задача:** F-003 — Деплой на Render, публичный URL
+**Задача:** F-102 — Загрузка списка 295 ПК из data/pk_list.json
 
 **Что сделать:**`n1. Создать Web Service на Render.`n2. Подставить публичный `RENDER_URL`.`n3. Проверить `GET https://<RENDER_URL>/health`.
 

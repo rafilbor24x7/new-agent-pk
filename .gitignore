@@ -10,6 +10,8 @@ metrics.db
 ~$*.xlsx
 pytest-cache-files-*/
 data/esklp_*/
+!data/esklp_test/
+!data/esklp_test/tn_smnn_test.xlsx
 /esklp_*/
 /pk_list.json
 /category.xlsx

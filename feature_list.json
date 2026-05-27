@@ -53,7 +53,7 @@
                                             "behavior":  "GET https://\u003crender-url\u003e/health → {\"status\": \"ok\"}",
                                             "verification_cmd":  "curl -s https://\u003cRENDER_URL\u003e/health",
                                             "expected_output":  "{\"status\":\"ok\"}",
-                                            "status":  "not_started",
+                                            "status":  "blocked",
                                             "priority":  "critical",
                                             "depends_on":  [
                                                                "F-002"
@@ -73,7 +73,7 @@
                                             "behavior":  "esklp_lookup.py читает tn_smnn_*.xlsx из ESKLP_DIR, загружает в DuckDB таблицу esklp_tn. Колонки: trade_name, mnn, form, dosage. Шапка пропускается (skiprows=4).",
                                             "verification_cmd":  "ESKLP_DIR=data/esklp_test python -c \"from app.services.esklp_lookup import EsklpLookup; e=EsklpLookup(); r=e.search(\u0027Ибупрофен\u0027); assert len(r)\u003e0; print(\u0027OK\u0027)\"",
                                             "expected_output":  "OK",
-                                            "status":  "not_started",
+                                            "status":  "passing",
                                             "priority":  "critical",
                                             "depends_on":  [
                                                                "F-001"
@@ -234,10 +234,10 @@
                ],
     "summary":  {
                     "total":  12,
-                    "not_started":  12,
+                    "not_started":  10,
                     "active":  0,
-                    "blocked":  0,
-                    "passing":  2,
+                    "blocked":  1,
+                    "passing":  3,
                     "last_updated":  "2026-05-27",
                     "note":  "Обновлять после каждой сессии"
                 }
