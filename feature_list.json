@@ -40,7 +40,7 @@
                                             "behavior":  "uvicorn запускается без ошибок. GET /health → {\"status\": \"ok\"}",
                                             "verification_cmd":  "uvicorn app.main:app --port 8000 \u0026 sleep 2 \u0026\u0026 curl -s http://localhost:8000/health",
                                             "expected_output":  "{\"status\":\"ok\"}",
-                                            "status":  "not_started",
+                                            "status":  "passing",
                                             "priority":  "critical",
                                             "depends_on":  [
                                                                "F-001"
@@ -234,10 +234,10 @@
                ],
     "summary":  {
                     "total":  12,
-                    "not_started":  11,
+                    "not_started":  12,
                     "active":  0,
                     "blocked":  0,
-                    "passing":  1,
+                    "passing":  2,
                     "last_updated":  "2026-05-27",
                     "note":  "Обновлять после каждой сессии"
                 }

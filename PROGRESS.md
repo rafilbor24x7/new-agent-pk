@@ -5,8 +5,8 @@
 ## ТЕКУЩИЙ СТАТУС
 
 **Фаза:** Bootstrap
-**Последняя задача:** F-001 — Репозиторий, зависимости, структура папок
-**Статус сборки:** ✅ verification_cmd F-001 прошёл (`OK`)
+**Последняя задача:** F-002 — FastAPI backend, GET /health
+**Статус сборки:** ✅ verification_cmd F-002 прошёл (`{"status":"ok"}`)
 **Статус тестов:** ✅ `pytest` прошёл, `ruff check .` чистый
 
 ---
@@ -36,15 +36,19 @@ ruff check .
 
 ---
 
+
+### F-002 — FastAPI backend, GET /health
+
+- Проверен запуск `uvicorn app.main:app --port 8000`.
+- `GET /health` возвращает `{"status":"ok"}`.
+- `pytest` и `ruff check .` проходят.
+
+**Результат:** F-002 passing.
 ## СЛЕДУЮЩИЙ ШАГ
 
-**Задача:** F-002 — FastAPI backend, GET /health
+**Задача:** F-003 — Деплой на Render, публичный URL
 
-**Что сделать:**
-1. Подключить роутеры FastAPI согласно `ARCHITECTURE.md`.
-2. Убедиться, что `uvicorn app.main:app --port 8000` стартует без ошибок.
-3. Проверить `GET /health → {"status": "ok"}`.
-4. Обновить `feature_list.json` и `PROGRESS.md` после verification_cmd F-002.
+**Что сделать:**`n1. Создать Web Service на Render.`n2. Подставить публичный `RENDER_URL`.`n3. Проверить `GET https://<RENDER_URL>/health`.
 
 ---
 
@@ -63,7 +67,7 @@ ruff check .
 
 | Сессия | Дата | Завершено | Начато | Итог |
 |---|---|---|---|---|
-| 1 | 2026-05-27 | F-001 | F-001 | Bootstrap завершён, verification_cmd=`OK`, `pytest` зелёный, `ruff` чистый |
+| 1 | 2026-05-27 | F-001, F-002 | F-001 | Bootstrap F-001/F-002 завершён, `/health` проверен, `pytest` зелёный, `ruff` чистый |
 
 ---
 
