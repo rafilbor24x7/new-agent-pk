@@ -132,7 +132,7 @@
                                             "behavior":  "Принимает {text} или multipart file. Возвращает [{sku_name_raw, mnn, form, dosage, zc, rc, bonus_percent, clarification_questions}]. Использует промпт из старого проекта.",
                                             "verification_cmd":  "curl -s -X POST http://localhost:8000/tools/parse_offer -H \u0027Content-Type: application/json\u0027 -d \u0027{\"text\": \"Ибупрофен 200мг №20 ЗЦ 45руб\"}\u0027 | python -c \"import sys,json; d=json.load(sys.stdin); assert d[0][\u0027sku_name_raw\u0027]; assert d[0][\u0027zc\u0027]==45; print(\u0027OK\u0027)\"",
                                             "expected_output":  "OK",
-                                            "status":  "not_started",
+                                            "status":  "passing",
                                             "priority":  "critical",
                                             "depends_on":  [
                                                                "F-001"
@@ -234,10 +234,10 @@
                ],
     "summary":  {
                     "total":  12,
-                    "not_started":  8,
+                    "not_started":  7,
                     "active":  0,
                     "blocked":  1,
-                    "passing":  5,
+                    "passing":  6,
                     "last_updated":  "2026-05-27",
                     "note":  "Обновлять после каждой сессии"
                 }

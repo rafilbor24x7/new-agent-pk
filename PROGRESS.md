@@ -5,8 +5,8 @@
 ## ТЕКУЩИЙ СТАТУС
 
 **Фаза:** Bootstrap
-**Последняя задача:** F-201 — POST /tools/search_esklp
-**Статус сборки:** ✅ verification_cmd F-201 прошёл (`OK`)
+**Последняя задача:** F-203 — POST /tools/parse_offer
+**Статус сборки:** ✅ verification_cmd F-203 прошёл (`OK`)
 **Статус тестов:** ✅ `pytest` прошёл, `ruff check .` чистый
 
 ---
@@ -71,9 +71,18 @@ ruff check .
 - Добавлен тест инструмента через `TestClient`.
 
 **Результат:** F-201 passing.
+
+### F-203 — POST /tools/parse_offer
+
+- Реализован `POST /tools/parse_offer` для JSON `{text}` и multipart `file`/`text`.
+- Текстовый парсинг использует `parse_offer_text()` из скопированного модуля.
+- Excel-парсинг использует `read_offer_excel()` и `extract_offer_skus()`.
+- Добавлен тест парсинга текста через HTTP-инструмент.
+
+**Результат:** F-203 passing.
 ## СЛЕДУЮЩИЙ ШАГ
 
-**Задача:** F-203 — POST /tools/parse_offer
+**Задача:** F-202 — POST /tools/match_pk
 
 **Что сделать:**`n1. Создать Web Service на Render.`n2. Подставить публичный `RENDER_URL`.`n3. Проверить `GET https://<RENDER_URL>/health`.
 
