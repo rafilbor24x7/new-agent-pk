@@ -5,9 +5,9 @@
 ## ТЕКУЩИЙ СТАТУС
 
 **Фаза:** Bootstrap
-**Последняя задача:** F-205 — POST /tools/upload_base
-**Статус сборки:** ✅ verification_cmd F-205 прошёл (`OK`)
-**Статус тестов:** ✅ `pytest` прошёл (7 passed), `ruff check .` чистый
+**Последняя задача:** F-204 — POST /tools/build_excel
+**Статус сборки:** ✅ verification_cmd F-204 прошёл (`PASSED`)
+**Статус тестов:** ✅ `pytest` прошёл (8 passed), `ruff check .` чистый
 
 ---
 
@@ -106,9 +106,19 @@ ruff check .
 - Добавлен HTTP-тест загрузки `tests/fixtures/base_sample.xlsx`.
 
 **Результат:** F-205 passing.
+
+### F-204 — POST /tools/build_excel
+
+- Добавлен in-memory store `app.services.result_store` для собранных Excel-файлов.
+- Реализован `POST /tools/build_excel`: `{base_file_id, matched_skus}` → `{download_url}`.
+- Реализован `GET /tools/download/{file_id}` для скачивания результата.
+- Сборка использует существующий `excel_builder.build_result_workbook_bytes()`.
+- Добавлен тест загрузки базы, сборки Excel и скачивания валидного `.xlsx`.
+
+**Результат:** F-204 passing.
 ## СЛЕДУЮЩИЙ ШАГ
 
-**Задача:** F-204 — POST /tools/build_excel
+**Задача:** F-301 — OpenAPI схема для /tools/*
 
 **Что сделать:**`n1. Создать Web Service на Render.`n2. Подставить публичный `RENDER_URL`.`n3. Проверить `GET https://<RENDER_URL>/health`.
 

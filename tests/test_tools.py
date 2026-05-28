@@ -120,3 +120,48 @@ def test_upload_base_tool():
     assert data["file_id"]
     assert data["columns_ok"] is True
     assert data["rows"] > 0
+
+def test_build_excel():
+    client = TestClient(app)
+
+    with open("tests/fixtures/base_sample.xlsx", "rb") as file:
+        upload_response = client.post(
+            "/tools/upload_base",
+            files={"file": ("base_sample.xlsx", file, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        )
+    base_file_id = upload_response.json()["file_id"]
+
+    response = client.post(
+        "/tools/build_excel",
+        json={
+            "base_file_id": base_file_id,
+            "matched_skus": [
+                {
+                    "sku": {
+                        "sku_name_raw": "Ибупрофен 200 мг таблетки №20",
+                        "mnn": "Ибупрофен",
+                        "form": "таблетки",
+                        "dosage": "200 мг",
+                        "zc": 45,
+                        "rc": 60,
+                    },
+                    "match": {
+                        "pk": "Терапия и профилактика пероральные формы для взрослых",
+                        "tg": "Аптечные препараты и нутрицевтики",
+                        "tk": "Средства при ОРВИ и простудных состояниях",
+                        "confidence": 0.93,
+                        "status": "auto_matched",
+                        "reason": "test",
+                    },
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    download_url = response.json()["download_url"]
+    assert download_url.startswith("/tools/download/")
+
+    download_response = client.get(download_url)
+    assert download_response.status_code == 200
+    assert download_response.content.startswith(b"PK")

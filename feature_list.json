@@ -144,7 +144,7 @@
                                             "behavior":  "Принимает {base_file_id, matched_skus}. Собирает Excel с вкладками по ПК + служебными вкладками. Возвращает {download_url}.",
                                             "verification_cmd":  "pytest tests/test_tools.py::test_build_excel -v",
                                             "expected_output":  "PASSED",
-                                            "status":  "not_started",
+                                            "status":  "passing",
                                             "priority":  "critical",
                                             "depends_on":  [
                                                                "F-202"
@@ -234,10 +234,10 @@
                ],
     "summary":  {
                     "total":  12,
-                    "not_started":  5,
+                    "not_started":  4,
                     "active":  0,
                     "blocked":  1,
-                    "passing":  8,
+                    "passing":  9,
                     "last_updated":  "2026-05-28",
                     "note":  "Обновлять после каждой сессии"
                 }
