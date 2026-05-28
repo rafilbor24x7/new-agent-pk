@@ -175,7 +175,7 @@
                                             "behavior":  "GET /openapi.json содержит все /tools/* эндпоинты с описаниями. Яндекс Студия может импортировать схему как MCP-сервер.",
                                             "verification_cmd":  "curl -s http://localhost:8000/openapi.json | python -c \"import sys,json; d=json.load(sys.stdin); tools=[p for p in d[\u0027paths\u0027] if p.startswith(\u0027/tools/\u0027)]; assert len(tools)\u003e=5; print(\u0027OK\u0027)\"",
                                             "expected_output":  "OK",
-                                            "status":  "not_started",
+                                            "status":  "passing",
                                             "priority":  "critical",
                                             "depends_on":  [
                                                                "F-201",
@@ -191,7 +191,7 @@
                                             "behavior":  "Каждый /tools/* эндпоинт имеет description в OpenAPI схеме на русском языке — агент в Яндекс Студии понимает когда его вызывать.",
                                             "verification_cmd":  "curl -s http://localhost:8000/openapi.json | python -c \"import sys,json; d=json.load(sys.stdin); paths=d[\u0027paths\u0027]; missing=[p for p in paths if p.startswith(\u0027/tools/\u0027) and not paths[p].get(\u0027post\u0027,{}).get(\u0027description\u0027)]; assert missing==[], f\u0027No description: {missing}\u0027; print(\u0027OK\u0027)\"",
                                             "expected_output":  "OK",
-                                            "status":  "not_started",
+                                            "status":  "passing",
                                             "priority":  "high",
                                             "depends_on":  [
                                                                "F-301"
@@ -234,10 +234,10 @@
                ],
     "summary":  {
                     "total":  12,
-                    "not_started":  4,
+                    "not_started":  2,
                     "active":  0,
                     "blocked":  1,
-                    "passing":  9,
+                    "passing":  11,
                     "last_updated":  "2026-05-28",
                     "note":  "Обновлять после каждой сессии"
                 }

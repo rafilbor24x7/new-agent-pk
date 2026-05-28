@@ -13,7 +13,8 @@ from app.services.pk_list import load_pk_list
 from app.services.pk_matcher import MatchPKInput, match_pk as match_pk_sku
 from app.services.result_store import get_result_file, store_result_file
 
-router = APIRouter(prefix="/tools", tags=["tools"])
+router = APIRouter(tags=["tools"])
+tools_router = APIRouter(prefix="/tools", tags=["tools"])
 
 
 class BuildExcelRequest(BaseModel):
@@ -39,7 +40,7 @@ def get_llm_client() -> DeepSeekLLMClient:
     return DeepSeekLLMClient()
 
 
-@router.get(
+@tools_router.get(
     "/pk_list",
     description="Возвращает полный статичный список товарных подкатегорий ПК для выбора агентом.",
 )
@@ -47,15 +48,23 @@ def get_pk_list() -> list[dict[str, str]]:
     return load_pk_list()
 
 
-@router.post(
+@tools_router.post(
+    "/pk_list",
+    description="Возвращает полный статичный список товарных подкатегорий ПК для выбора агентом. POST-алиас нужен для MCP/OpenAPI-проверки.",
+)
+def post_pk_list() -> list[dict[str, str]]:
+    return load_pk_list()
+
+
+@tools_router.post(
     "/search_esklp",
-    description="Ищет МНН, лекарственную форму и дозировку в ЕСКЛП по торговому наименованию SKU.",
+    description="Ищет МНН, лекарственную форму, дозировку, АТХ и ФТГ в ЕСКЛП по торговому наименованию SKU.",
 )
 def search_esklp(request: SearchEsklpRequest) -> list[dict[str, Any]]:
     return get_esklp_lookup().search(request.trade_name)
 
 
-@router.post(
+@tools_router.post(
     "/parse_offer",
     description="Парсит коммерческое предложение из текста или Excel-файла и возвращает список SKU.",
 )
@@ -82,7 +91,7 @@ async def parse_offer(request: Request) -> list[dict[str, Any]]:
     return parse_offer_text(text, producer=producer or None)
 
 
-@router.post(
+@tools_router.post(
     "/match_pk",
     description="Подбирает товарную подкатегорию ПК по SKU, МНН, форме, дозировке, АТХ и ФТГ; при низкой уверенности использует LLM.",
 )
@@ -90,7 +99,7 @@ def match_pk_tool(request: MatchPKInput) -> dict[str, Any]:
     return match_pk_sku(request.model_dump(), load_pk_list(), llm_client=get_llm_client())
 
 
-@router.post(
+@tools_router.post(
     "/upload_base",
     description="Загружает основную Excel-выгрузку, проверяет обязательные колонки и сохраняет файл в памяти сессии.",
 )
@@ -105,7 +114,7 @@ async def upload_base(file: UploadFile = File(...)) -> dict[str, Any]:
     }
 
 
-@router.post(
+@tools_router.post(
     "/build_excel",
     description="Собирает итоговый Excel по основной выгрузке и списку сопоставленных SKU; возвращает ссылку на скачивание.",
 )
@@ -121,11 +130,11 @@ def build_excel(request: BuildExcelRequest) -> dict[str, str]:
         session_id=request.base_file_id,
     )
     stored = store_result_file(content)
-    return {"download_url": f"/tools/download/{stored.file_id}"}
+    return {"download_url": f"/downloads/{stored.file_id}"}
 
 
 @router.get(
-    "/download/{file_id}",
+    "/downloads/{file_id}",
     description="Скачивает Excel-файл, собранный инструментом /tools/build_excel.",
 )
 def download_result(file_id: str) -> Response:
@@ -143,3 +152,6 @@ def _optional_form_value(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+router.include_router(tools_router)

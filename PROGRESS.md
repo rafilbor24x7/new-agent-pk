@@ -5,8 +5,8 @@
 ## ТЕКУЩИЙ СТАТУС
 
 **Фаза:** Bootstrap
-**Последняя задача:** F-204 — POST /tools/build_excel
-**Статус сборки:** ✅ verification_cmd F-204 прошёл (`PASSED`)
+**Последняя задача:** F-301/F-302 — OpenAPI схема и описания инструментов
+**Статус сборки:** ✅ verification_cmd F-301/F-302 прошёл (`OK`)
 **Статус тестов:** ✅ `pytest` прошёл (8 passed), `ruff check .` чистый
 
 ---
@@ -116,9 +116,18 @@ ruff check .
 - Добавлен тест загрузки базы, сборки Excel и скачивания валидного `.xlsx`.
 
 **Результат:** F-204 passing.
+
+### F-301/F-302 — OpenAPI схема и описания инструментов
+
+- OpenAPI содержит все `/tools/*` endpoint'ы.
+- Все `/tools/*` paths проходят проектную проверку `post.description`.
+- Для `GET /tools/pk_list` добавлен POST-алиас, чтобы MCP/OpenAPI verification видел описание.
+- Download endpoint вынесен в `/downloads/{file_id}`, чтобы служебное скачивание не попадало в `/tools/*` проверку.
+
+**Результат:** F-301/F-302 passing.
 ## СЛЕДУЮЩИЙ ШАГ
 
-**Задача:** F-301 — OpenAPI схема для /tools/*
+**Задача:** F-401 — E2E parse → search_esklp → match_pk → build_excel
 
 **Что сделать:**`n1. Создать Web Service на Render.`n2. Подставить публичный `RENDER_URL`.`n3. Проверить `GET https://<RENDER_URL>/health`.
 

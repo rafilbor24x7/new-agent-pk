@@ -160,7 +160,7 @@ def test_build_excel():
 
     assert response.status_code == 200
     download_url = response.json()["download_url"]
-    assert download_url.startswith("/tools/download/")
+    assert download_url.startswith("/downloads/")
 
     download_response = client.get(download_url)
     assert download_response.status_code == 200
