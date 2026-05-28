@@ -118,7 +118,7 @@
                                             "behavior":  "Принимает {trade_name, mnn, form, dosage}. Сначала fuzzy-match по МНН в pk_list. Если confidence \u003c 0.90 — вызывает LLM с полным списком 295 ПК. Возвращает {pk, tg, tk, confidence, reason, candidates}.",
                                             "verification_cmd":  "pytest tests/test_tools.py::test_match_pk -v",
                                             "expected_output":  "PASSED",
-                                            "status":  "not_started",
+                                            "status":  "passing",
                                             "priority":  "critical",
                                             "depends_on":  [
                                                                "F-102",
@@ -234,11 +234,11 @@
                ],
     "summary":  {
                     "total":  12,
-                    "not_started":  7,
+                    "not_started":  6,
                     "active":  0,
                     "blocked":  1,
-                    "passing":  6,
-                    "last_updated":  "2026-05-27",
+                    "passing":  7,
+                    "last_updated":  "2026-05-28",
                     "note":  "Обновлять после каждой сессии"
                 }
 }

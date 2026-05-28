@@ -5,9 +5,9 @@
 ## ТЕКУЩИЙ СТАТУС
 
 **Фаза:** Bootstrap
-**Последняя задача:** F-203 — POST /tools/parse_offer
-**Статус сборки:** ✅ verification_cmd F-203 прошёл (`OK`)
-**Статус тестов:** ✅ `pytest` прошёл, `ruff check .` чистый
+**Последняя задача:** F-202 — POST /tools/match_pk + D-007 ЕСКЛП АТХ/ФТГ
+**Статус сборки:** ✅ verification_cmd F-202 прошёл (`PASSED`), D-007 тесты прошли
+**Статус тестов:** ✅ `pytest` прошёл (6 passed), `ruff check .` чистый
 
 ---
 
@@ -80,9 +80,26 @@ ruff check .
 - Добавлен тест парсинга текста через HTTP-инструмент.
 
 **Результат:** F-203 passing.
+
+### D-007 — ЕСКЛП АТХ/ФТГ для match_pk
+
+- Зафиксировано архитектурное решение в `DECISIONS.md`.
+- `EsklpLookup` дополнительно читает `esklp_smnn_*.xlsx`, выбирает рабочий лист `esklp_smnn_*` и загружает DuckDB-таблицу `esklp_smnn`.
+- `esklp_tn` связывается с `esklp_smnn` по `smnn_code`; `search()` возвращает `atx_code`, `atx_name`, `ftg_name`.
+- Добавлены тестовые фикстуры `esklp_smnn_test.xlsx` в `tests/fixtures/esklp_test/` и `data/esklp_test/`.
+- `/tools/match_pk` принимает и передаёт LLM поля АТХ/ФТГ вместе с МНН, формой и дозировкой.
+
+### F-202 — POST /tools/match_pk
+
+- Добавлен сервис `pk_matcher.py` для подбора ПК по SKU и справочнику 295 ПК.
+- Реализован `POST /tools/match_pk`.
+- При высокой уверенности используется fuzzy/точное попадание, при низкой — `DeepSeekLLMClient` с полным списком ПК и классификацией ЕСКЛП.
+- Тест покрывает лекарство с МНН, БАД без МНН и медизделие с mock LLM.
+
+**Результат:** F-202 passing.
 ## СЛЕДУЮЩИЙ ШАГ
 
-**Задача:** F-202 — POST /tools/match_pk
+**Задача:** F-205 — POST /tools/upload_base
 
 **Что сделать:**`n1. Создать Web Service на Render.`n2. Подставить публичный `RENDER_URL`.`n3. Проверить `GET https://<RENDER_URL>/health`.
 
@@ -103,7 +120,7 @@ ruff check .
 
 | Сессия | Дата | Завершено | Начато | Итог |
 |---|---|---|---|---|
-| 1 | 2026-05-27 | F-001, F-002 | F-001 | Bootstrap F-001/F-002 завершён, `/health` проверен, `pytest` зелёный, `ruff` чистый |
+| 1 | 2026-05-27/28 | F-001, F-002, F-101, F-102, F-201, F-203, F-202 | F-001 | Инструменты parse/search/match готовы, D-007 добавил АТХ/ФТГ, `pytest` зелёный, `ruff` чистый |
 
 ---
 

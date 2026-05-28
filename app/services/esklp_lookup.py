@@ -13,7 +13,7 @@ DEFAULT_ESKLP_DIRS = (
     Path("data/esklp_test"),
     Path("tests/fixtures/esklp_test"),
 )
-COLUMN_ALIASES = {
+TN_COLUMN_ALIASES = {
     "trade_name": (
         "trade_name",
         "торговое наименование",
@@ -25,16 +25,19 @@ COLUMN_ALIASES = {
         "mnn",
         "мнн",
         "международное непатентованное наименование",
+        "стандартизованное мнн",
     ),
     "form": (
         "form",
         "лекарственная форма",
+        "стандартизованная лекарственная форма",
         "форма выпуска",
         "форма",
     ),
     "dosage": (
         "dosage",
         "дозировка",
+        "стандартизованная дозировка",
         "доза",
     ),
     "smnn_code": (
@@ -44,6 +47,23 @@ COLUMN_ALIASES = {
         "смнн код",
     ),
 }
+SMNN_POSITION_COLUMNS = {
+    "smnn_code": 1,
+    "ftg_name": 12,
+    "atx_code": 13,
+    "atx_name": 14,
+}
+ESKLP_COLUMNS = [
+    "trade_name",
+    "mnn",
+    "form",
+    "dosage",
+    "smnn_code",
+    "atx_code",
+    "atx_name",
+    "ftg_name",
+]
+SMNN_COLUMNS = ["smnn_code", "atx_code", "atx_name", "ftg_name"]
 
 
 class EsklpLookup:
@@ -51,9 +71,27 @@ class EsklpLookup:
         self.esklp_dir = _resolve_esklp_dir(esklp_dir)
         self.score_cutoff = score_cutoff
         self.connection = duckdb.connect(database=":memory:")
-        self._df = self._load_dataframe()
-        self.connection.register("esklp_tn_df", self._df)
+        self._tn_df = self._load_tn_dataframe()
+        self._smnn_df = self._load_smnn_dataframe()
+        self.connection.register("esklp_tn_df", self._tn_df)
+        self.connection.register("esklp_smnn_df", self._smnn_df)
         self.connection.execute("CREATE TABLE esklp_tn AS SELECT * FROM esklp_tn_df")
+        self.connection.execute("CREATE TABLE esklp_smnn AS SELECT * FROM esklp_smnn_df")
+        self._df = self.connection.execute(
+            """
+            SELECT
+                tn.trade_name,
+                tn.mnn,
+                tn.form,
+                tn.dosage,
+                tn.smnn_code,
+                smnn.atx_code,
+                smnn.atx_name,
+                smnn.ftg_name
+            FROM esklp_tn tn
+            LEFT JOIN esklp_smnn smnn USING (smnn_code)
+            """
+        ).fetch_df()
 
     def search(self, trade_name: str, limit: int = 3) -> list[dict[str, Any]]:
         query = str(trade_name or "").strip()
@@ -76,31 +114,39 @@ class EsklpLookup:
                 continue
             seen.add(index)
             row = self._df.iloc[index]
-            results.append(
-                {
-                    "trade_name": _clean_value(row.get("trade_name")),
-                    "mnn": _clean_value(row.get("mnn")),
-                    "form": _clean_value(row.get("form")),
-                    "dosage": _clean_value(row.get("dosage")),
-                    "smnn_code": _clean_value(row.get("smnn_code")),
-                    "score": round(float(score), 2),
-                }
-            )
+            item = {column: _clean_value(row.get(column)) for column in ESKLP_COLUMNS}
+            item["score"] = round(float(score), 2)
+            results.append(item)
         return results
 
-    def _load_dataframe(self) -> pd.DataFrame:
+    def _load_tn_dataframe(self) -> pd.DataFrame:
         files = sorted(self.esklp_dir.glob("tn_smnn_*.xlsx"))
         if not files:
-            return _empty_esklp_df()
+            return _empty_tn_df()
 
-        frames = [_read_esklp_file(path) for path in files]
+        frames = [_read_tn_file(path) for path in files]
         frames = [frame for frame in frames if not frame.empty]
         if not frames:
-            return _empty_esklp_df()
+            return _empty_tn_df()
 
         df = pd.concat(frames, ignore_index=True)
         df = df.dropna(subset=["trade_name"])
         df = df.drop_duplicates(subset=["trade_name", "mnn", "form", "dosage", "smnn_code"])
+        return df.reset_index(drop=True)
+
+    def _load_smnn_dataframe(self) -> pd.DataFrame:
+        files = sorted(self.esklp_dir.glob("esklp_smnn_*.xlsx"))
+        if not files:
+            return _empty_smnn_df()
+
+        frames = [_read_smnn_file(path) for path in files]
+        frames = [frame for frame in frames if not frame.empty]
+        if not frames:
+            return _empty_smnn_df()
+
+        df = pd.concat(frames, ignore_index=True)
+        df = df.dropna(subset=["smnn_code"])
+        df = df.drop_duplicates(subset=["smnn_code"])
         return df.reset_index(drop=True)
 
 
@@ -118,19 +164,16 @@ def _resolve_esklp_dir(esklp_dir: str | Path | None) -> Path:
     return DEFAULT_ESKLP_DIRS[0]
 
 
-def _read_esklp_file(path: Path) -> pd.DataFrame:
-    raw = pd.read_excel(path, skiprows=4, dtype=str)
+def _read_tn_file(path: Path) -> pd.DataFrame:
+    raw = _read_esklp_excel(path, "tn_smnn")
     if raw.empty:
-        return _empty_esklp_df()
+        return _empty_tn_df()
 
-    columns = _map_columns(raw.columns)
+    columns = _map_columns(raw.columns, TN_COLUMN_ALIASES)
     data: dict[str, pd.Series] = {}
-    for target in COLUMN_ALIASES:
+    for target in TN_COLUMN_ALIASES:
         source = columns.get(target)
-        if source is None:
-            data[target] = pd.Series([None] * len(raw), dtype="object")
-        else:
-            data[target] = raw[source]
+        data[target] = raw[source] if source is not None else pd.Series([None] * len(raw), dtype="object")
 
     df = pd.DataFrame(data)
     for column in df.columns:
@@ -138,10 +181,38 @@ def _read_esklp_file(path: Path) -> pd.DataFrame:
     return df
 
 
-def _map_columns(columns: pd.Index) -> dict[str, Any]:
+def _read_smnn_file(path: Path) -> pd.DataFrame:
+    raw = _read_esklp_excel(path, "esklp_smnn")
+    if raw.empty:
+        return _empty_smnn_df()
+
+    data: dict[str, pd.Series] = {}
+    for target, index in SMNN_POSITION_COLUMNS.items():
+        data[target] = raw.iloc[:, index] if len(raw.columns) > index else pd.Series([None] * len(raw), dtype="object")
+
+    df = pd.DataFrame(data)
+    for column in df.columns:
+        df[column] = df[column].map(_clean_value)
+    return df[SMNN_COLUMNS]
+
+
+def _read_esklp_excel(path: Path, sheet_prefix: str) -> pd.DataFrame:
+    sheet_name = _find_sheet_name(path, sheet_prefix)
+    return pd.read_excel(path, sheet_name=sheet_name, skiprows=4, dtype=str)
+
+
+def _find_sheet_name(path: Path, sheet_prefix: str) -> str | int:
+    excel = pd.ExcelFile(path)
+    for sheet_name in excel.sheet_names:
+        if sheet_name.casefold().startswith(sheet_prefix.casefold()):
+            return sheet_name
+    return 0
+
+
+def _map_columns(columns: pd.Index, aliases_by_target: dict[str, tuple[str, ...]]) -> dict[str, Any]:
     mapped: dict[str, Any] = {}
     normalized_columns = {column: _normalize_header(column) for column in columns}
-    for target, aliases in COLUMN_ALIASES.items():
+    for target, aliases in aliases_by_target.items():
         for column, normalized in normalized_columns.items():
             if normalized in aliases or any(alias in normalized for alias in aliases):
                 mapped[target] = column
@@ -160,5 +231,9 @@ def _clean_value(value: object) -> str | None:
     return text or None
 
 
-def _empty_esklp_df() -> pd.DataFrame:
+def _empty_tn_df() -> pd.DataFrame:
     return pd.DataFrame(columns=["trade_name", "mnn", "form", "dosage", "smnn_code"])
+
+
+def _empty_smnn_df() -> pd.DataFrame:
+    return pd.DataFrame(columns=SMNN_COLUMNS)

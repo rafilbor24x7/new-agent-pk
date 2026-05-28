@@ -5,8 +5,10 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.services.esklp_lookup import EsklpLookup
+from app.services.llm_client import DeepSeekLLMClient
 from app.services.parser_offer import extract_offer_skus, parse_offer_text, read_offer_excel
 from app.services.pk_list import load_pk_list
+from app.services.pk_matcher import MatchPKInput, match_pk as match_pk_sku
 
 router = APIRouter(prefix="/tools", tags=["tools"])
 
@@ -20,6 +22,11 @@ class SearchEsklpRequest(BaseModel):
 @lru_cache(maxsize=1)
 def get_esklp_lookup() -> EsklpLookup:
     return EsklpLookup()
+
+
+@lru_cache(maxsize=1)
+def get_llm_client() -> DeepSeekLLMClient:
+    return DeepSeekLLMClient()
 
 
 @router.get(
@@ -63,6 +70,14 @@ async def parse_offer(request: Request) -> list[dict[str, Any]]:
     if not text:
         raise HTTPException(status_code=400, detail="Field text is required")
     return parse_offer_text(text, producer=producer or None)
+
+
+@router.post(
+    "/match_pk",
+    description="Подбирает товарную подкатегорию ПК по SKU, МНН, форме и дозировке; при низкой уверенности использует LLM.",
+)
+def match_pk_tool(request: MatchPKInput) -> dict[str, Any]:
+    return match_pk_sku(request.model_dump(), load_pk_list(), llm_client=get_llm_client())
 
 
 def _optional_form_value(value: Any) -> str | None:
