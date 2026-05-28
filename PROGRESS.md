@@ -5,9 +5,9 @@
 ## ТЕКУЩИЙ СТАТУС
 
 **Фаза:** Bootstrap
-**Последняя задача:** F-301/F-302 — OpenAPI схема и описания инструментов
-**Статус сборки:** ✅ verification_cmd F-301/F-302 прошёл (`OK`)
-**Статус тестов:** ✅ `pytest` прошёл (8 passed), `ruff check .` чистый
+**Последняя задача:** F-401 — E2E parse → search_esklp → match_pk → build_excel
+**Статус сборки:** ✅ verification_cmd F-401 прошёл (`PASSED`); F-402 локально зелёная, публичный URL blocked
+**Статус тестов:** ✅ `pytest` прошёл (9 passed), `ruff check .` чистый
 
 ---
 
@@ -125,9 +125,25 @@ ruff check .
 - Download endpoint вынесен в `/downloads/{file_id}`, чтобы служебное скачивание не попадало в `/tools/*` проверку.
 
 **Результат:** F-301/F-302 passing.
+
+### F-401 — E2E parse → search_esklp → match_pk → build_excel
+
+- Добавлен `tests/test_e2e.py::test_full_pipeline`.
+- E2E прогоняет 5 SKU через `/tools/parse_offer`, `/tools/search_esklp`, `/tools/match_pk`, `/tools/upload_base`, `/tools/build_excel` и скачивание результата.
+- Проверяется, что минимум 3 из 5 SKU получают auto-match и итоговый Excel открывается через `openpyxl`.
+- LLM в E2E замокан, потому что `DEEPSEEK_API_KEY` не является локальным обязательным секретом.
+
+**Результат:** F-401 passing.
+
+### F-402 — Финальный чеклист
+
+- Локально `pytest` и `ruff check .` проходят.
+- Публичный Render URL не проверен: зависит от F-003 и `RENDER_URL`.
+
+**Результат:** F-402 blocked до деплоя Render.
 ## СЛЕДУЮЩИЙ ШАГ
 
-**Задача:** F-401 — E2E parse → search_esklp → match_pk → build_excel
+**Задача:** F-003 — Деплой на Render, публичный URL
 
 **Что сделать:**`n1. Создать Web Service на Render.`n2. Подставить публичный `RENDER_URL`.`n3. Проверить `GET https://<RENDER_URL>/health`.
 
@@ -148,7 +164,7 @@ ruff check .
 
 | Сессия | Дата | Завершено | Начато | Итог |
 |---|---|---|---|---|
-| 1 | 2026-05-27/28 | F-001, F-002, F-101, F-102, F-201, F-203, F-202 | F-001 | Инструменты parse/search/match готовы, D-007 добавил АТХ/ФТГ, `pytest` зелёный, `ruff` чистый |
+| 1 | 2026-05-27/28 | F-001, F-002, F-101, F-102, F-201, F-203, F-202, F-205, F-204, F-301, F-302, F-401 | F-001 | Локальная цепочка готова, D-007 добавил АТХ/ФТГ, F-003/F-402 ждут Render URL |
 
 ---
 

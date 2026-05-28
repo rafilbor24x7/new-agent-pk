@@ -210,7 +210,7 @@
                                             "behavior":  "Последовательный вызов всех инструментов с реальными файлами заказчика. Минимум 3 из 5 SKU получают верную ПК. Excel скачивается и открывается.",
                                             "verification_cmd":  "pytest tests/test_e2e.py::test_full_pipeline -v",
                                             "expected_output":  "PASSED",
-                                            "status":  "not_started",
+                                            "status":  "passing",
                                             "priority":  "critical",
                                             "depends_on":  [
                                                                "F-301"
@@ -223,21 +223,22 @@
                                             "behavior":  "Все тесты зелёные, линтер чистый, Render URL отвечает, OpenAPI схема доступна публично.",
                                             "verification_cmd":  "pytest \u0026\u0026 ruff check . --no-cache",
                                             "expected_output":  "passed / All checks passed",
-                                            "status":  "not_started",
+                                            "status":  "blocked",
                                             "priority":  "critical",
                                             "depends_on":  [
                                                                "F-401"
-                                                           ]
+                                                           ],
+                                            "notes":  "Локально pytest и ruff проходят; публичный Render URL заблокирован F-003/RENDER_URL."
                                         }
                                     ]
                    }
                ],
     "summary":  {
-                    "total":  12,
-                    "not_started":  2,
+                    "total":  14,
+                    "not_started":  0,
                     "active":  0,
-                    "blocked":  1,
-                    "passing":  11,
+                    "blocked":  2,
+                    "passing":  12,
                     "last_updated":  "2026-05-28",
                     "note":  "Обновлять после каждой сессии"
                 }
