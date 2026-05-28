@@ -105,3 +105,18 @@ def test_match_pk(monkeypatch):
     response = client.post("/tools/match_pk", json={"trade_name": "лейкопластырь медицинский"})
     assert response.status_code == 200
     assert response.json()["pk"] == "Медицинский клеевой материал"
+
+def test_upload_base_tool():
+    client = TestClient(app)
+
+    with open("tests/fixtures/base_sample.xlsx", "rb") as file:
+        response = client.post(
+            "/tools/upload_base",
+            files={"file": ("base_sample.xlsx", file, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["file_id"]
+    assert data["columns_ok"] is True
+    assert data["rows"] > 0

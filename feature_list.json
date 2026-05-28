@@ -156,7 +156,7 @@
                                             "behavior":  "Принимает multipart Excel. Валидирует колонки. Возвращает {file_id, rows, columns_ok}. Файл хранится в памяти сессии по file_id.",
                                             "verification_cmd":  "curl -s -X POST http://localhost:8000/tools/upload_base -F \u0027file=@tests/fixtures/base_sample.xlsx\u0027 | python -c \"import sys,json; d=json.load(sys.stdin); assert d[\u0027columns_ok\u0027]; print(\u0027OK\u0027)\"",
                                             "expected_output":  "OK",
-                                            "status":  "not_started",
+                                            "status":  "passing",
                                             "priority":  "critical",
                                             "depends_on":  [
                                                                "F-002"
@@ -234,10 +234,10 @@
                ],
     "summary":  {
                     "total":  12,
-                    "not_started":  6,
+                    "not_started":  5,
                     "active":  0,
                     "blocked":  1,
-                    "passing":  7,
+                    "passing":  8,
                     "last_updated":  "2026-05-28",
                     "note":  "Обновлять после каждой сессии"
                 }

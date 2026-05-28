@@ -1,9 +1,10 @@
 from functools import lru_cache
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.services.base_store import upload_base_file
 from app.services.esklp_lookup import EsklpLookup
 from app.services.llm_client import DeepSeekLLMClient
 from app.services.parser_offer import extract_offer_skus, parse_offer_text, read_offer_excel
@@ -79,6 +80,20 @@ async def parse_offer(request: Request) -> list[dict[str, Any]]:
 def match_pk_tool(request: MatchPKInput) -> dict[str, Any]:
     return match_pk_sku(request.model_dump(), load_pk_list(), llm_client=get_llm_client())
 
+
+@router.post(
+    "/upload_base",
+    description="Загружает основную Excel-выгрузку, проверяет обязательные колонки и сохраняет файл в памяти сессии.",
+)
+async def upload_base(file: UploadFile = File(...)) -> dict[str, Any]:
+    content = await file.read()
+    stored = upload_base_file(content, filename=file.filename)
+    return {
+        "file_id": stored.file_id,
+        "rows": int(len(stored.dataframe)),
+        "columns_ok": stored.columns_ok,
+        "missing_columns": stored.missing_columns,
+    }
 
 def _optional_form_value(value: Any) -> str | None:
     if value is None or hasattr(value, "read"):

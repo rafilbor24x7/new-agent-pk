@@ -5,9 +5,9 @@
 ## ТЕКУЩИЙ СТАТУС
 
 **Фаза:** Bootstrap
-**Последняя задача:** F-202 — POST /tools/match_pk + D-007 ЕСКЛП АТХ/ФТГ
-**Статус сборки:** ✅ verification_cmd F-202 прошёл (`PASSED`), D-007 тесты прошли
-**Статус тестов:** ✅ `pytest` прошёл (6 passed), `ruff check .` чистый
+**Последняя задача:** F-205 — POST /tools/upload_base
+**Статус сборки:** ✅ verification_cmd F-205 прошёл (`OK`)
+**Статус тестов:** ✅ `pytest` прошёл (7 passed), `ruff check .` чистый
 
 ---
 
@@ -97,9 +97,18 @@ ruff check .
 - Тест покрывает лекарство с МНН, БАД без МНН и медизделие с mock LLM.
 
 **Результат:** F-202 passing.
+
+### F-205 — POST /tools/upload_base
+
+- Добавлен in-memory store `app.services.base_store` для основной Excel-выгрузки.
+- Реализован `POST /tools/upload_base`: multipart Excel → `{file_id, rows, columns_ok, missing_columns}`.
+- Валидируются обязательные колонки базовой выгрузки.
+- Добавлен HTTP-тест загрузки `tests/fixtures/base_sample.xlsx`.
+
+**Результат:** F-205 passing.
 ## СЛЕДУЮЩИЙ ШАГ
 
-**Задача:** F-205 — POST /tools/upload_base
+**Задача:** F-204 — POST /tools/build_excel
 
 **Что сделать:**`n1. Создать Web Service на Render.`n2. Подставить публичный `RENDER_URL`.`n3. Проверить `GET https://<RENDER_URL>/health`.
 
