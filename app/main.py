@@ -4,6 +4,8 @@ from threading import Lock, Thread
 
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, ConfigDict, Field
+from rapidfuzz import fuzz
 
 from app.api.tools import router as tools_router
 from app.api.tools import get_esklp_lookup, has_esklp_lookup, reload_esklp_lookup
@@ -14,6 +16,12 @@ _ESKLP_LOAD_STATUS: dict[str, object] = {
     "rows": None,
     "error": None,
 }
+
+
+class EsklpDebugRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    trade_name: str = Field(min_length=1)
 
 app = FastAPI(title="new-agent-pk")
 app.add_middleware(
@@ -106,6 +114,42 @@ def reload_esklp(
     return {"status": "loading"}
 
 
+@app.post("/admin/esklp_debug")
+def esklp_debug(
+    request: EsklpDebugRequest,
+    x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
+) -> dict[str, object]:
+    _require_admin_token(x_admin_token)
+
+    lookup = get_esklp_lookup()
+    query = request.trade_name.strip()
+    like_term = query[:3]
+    like_pattern = f"%{like_term}%"
+
+    first_rows_df = lookup.connection.execute("SELECT * FROM esklp_tn LIMIT 3").fetch_df()
+    like_df = lookup.connection.execute(
+        "SELECT trade_name FROM esklp_tn WHERE trade_name LIKE ? LIMIT 3",
+        [like_pattern],
+    ).fetch_df()
+    first_trade_names = lookup.connection.execute(
+        "SELECT trade_name FROM esklp_tn LIMIT 5"
+    ).fetchall()
+
+    return {
+        "trade_name": query,
+        "like_pattern": like_pattern,
+        "first_rows": _records(first_rows_df),
+        "like_matches": _records(like_df),
+        "rapidfuzz_scores": [
+            {
+                "trade_name": row[0],
+                "token_sort_ratio": round(float(fuzz.token_sort_ratio(query, row[0] or "")), 2),
+            }
+            for row in first_trade_names
+        ],
+    }
+
+
 def _reload_esklp_in_background() -> None:
     try:
         lookup = reload_esklp_lookup()
@@ -129,6 +173,10 @@ def _sample_esklp_tn(lookup: object) -> list[dict[str, object]]:
         LIMIT 3
         """
     ).fetch_df()
+    return _records(rows)
+
+
+def _records(rows: object) -> list[dict[str, object]]:
     return rows.where(rows.notna(), None).to_dict("records")
 
 

@@ -118,6 +118,37 @@ def test_reload_esklp_requires_admin_token(monkeypatch):
     assert response.status_code == 401
 
 
+def test_esklp_debug_returns_raw_rows_like_and_scores(monkeypatch):
+    monkeypatch.setenv("ADMIN_TOKEN", "secret")
+    monkeypatch.setenv("ESKLP_DIR", "data/esklp_test")
+    get_esklp_lookup.cache_clear()
+    _reload_esklp_for_tests()
+    client = TestClient(app)
+
+    response = client.post(
+        "/admin/esklp_debug",
+        headers={"X-Admin-Token": "secret"},
+        json={"trade_name": "Ibuprofen"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["trade_name"] == "Ibuprofen"
+    assert data["like_pattern"] == "%Ibu%"
+    assert len(data["first_rows"]) == 3
+    assert set(data["first_rows"][0]) == {
+        "trade_name",
+        "mnn",
+        "form",
+        "dosage",
+        "smnn_code",
+        "smnn_join_key",
+    }
+    assert isinstance(data["like_matches"], list)
+    assert len(data["rapidfuzz_scores"]) == 5
+    assert set(data["rapidfuzz_scores"][0]) == {"trade_name", "token_sort_ratio"}
+
+
 def test_reload_esklp_clears_cached_empty_lookup(monkeypatch, tmp_path):
     monkeypatch.setenv("ADMIN_TOKEN", "secret")
     monkeypatch.setenv("ESKLP_DIR", str(tmp_path))
