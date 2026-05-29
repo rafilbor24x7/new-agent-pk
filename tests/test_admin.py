@@ -81,6 +81,8 @@ def test_esklp_status_returns_dir_files_and_rows(monkeypatch):
     assert data["esklp_tn_rows"] == 5
     assert data["status"] == "ready"
     assert data["error"] is None
+    assert len(data["sample"]) == 3
+    assert data["sample"][0]["trade_name"] == "Ибупрофен"
 
 
 def test_reload_esklp_requires_admin_token(monkeypatch):
@@ -125,3 +127,7 @@ def test_reload_esklp_clears_cached_empty_lookup(monkeypatch, tmp_path):
     assert status["status"] == "ready"
     assert status["esklp_tn_rows"] == 5
     assert status["error"] is None
+
+    search_response = client.post("/tools/search_esklp", json={"trade_name": "Ибупрофен"})
+    assert search_response.status_code == 200
+    assert search_response.json()

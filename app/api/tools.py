@@ -1,4 +1,6 @@
 from functools import lru_cache
+from threading import Lock
+from typing import NamedTuple
 from typing import Any
 
 from fastapi import APIRouter, File, HTTPException, Request, Response, UploadFile
@@ -15,6 +17,15 @@ from app.services.result_store import get_result_file, store_result_file
 
 router = APIRouter(tags=["tools"])
 tools_router = APIRouter(prefix="/tools", tags=["tools"])
+_ESKLP_LOOKUP_LOCK = Lock()
+_ESKLP_LOOKUP: EsklpLookup | None = None
+
+
+class EsklpLookupCacheInfo(NamedTuple):
+    hits: int
+    misses: int
+    maxsize: int
+    currsize: int
 
 
 class BuildExcelRequest(BaseModel):
@@ -30,9 +41,42 @@ class SearchEsklpRequest(BaseModel):
     trade_name: str = Field(min_length=1, description="Торговое наименование SKU из КП")
 
 
-@lru_cache(maxsize=1)
 def get_esklp_lookup() -> EsklpLookup:
-    return EsklpLookup()
+    global _ESKLP_LOOKUP
+
+    with _ESKLP_LOOKUP_LOCK:
+        if _ESKLP_LOOKUP is None:
+            _ESKLP_LOOKUP = EsklpLookup()
+        return _ESKLP_LOOKUP
+
+
+def reload_esklp_lookup() -> EsklpLookup:
+    global _ESKLP_LOOKUP
+
+    lookup = EsklpLookup()
+    with _ESKLP_LOOKUP_LOCK:
+        _ESKLP_LOOKUP = lookup
+    return lookup
+
+
+def clear_esklp_lookup() -> None:
+    global _ESKLP_LOOKUP
+
+    with _ESKLP_LOOKUP_LOCK:
+        _ESKLP_LOOKUP = None
+
+
+def has_esklp_lookup() -> bool:
+    with _ESKLP_LOOKUP_LOCK:
+        return _ESKLP_LOOKUP is not None
+
+
+def _esklp_lookup_cache_info() -> EsklpLookupCacheInfo:
+    return EsklpLookupCacheInfo(hits=0, misses=0, maxsize=1, currsize=int(has_esklp_lookup()))
+
+
+get_esklp_lookup.cache_clear = clear_esklp_lookup  # type: ignore[attr-defined]
+get_esklp_lookup.cache_info = _esklp_lookup_cache_info  # type: ignore[attr-defined]
 
 
 @lru_cache(maxsize=1)
