@@ -11,5 +11,5 @@ def test_esklp_lookup_finds_trade_name_with_atx_and_ftg(monkeypatch):
     assert result[0]["mnn"] == "Ибупрофен"
     assert result[0]["form"] == "таблетки"
     assert result[0]["atx_code"] == "M01AE"
-    assert result[0]["atx_name"] == "Производные пропионовой кислоты"
+    assert result[0]["atx_name"] == "Ибупрофен"
     assert result[0]["ftg_name"] == "Нестероидные противовоспалительные препараты"

@@ -13,62 +13,23 @@ DEFAULT_ESKLP_DIRS = (
     Path("data/esklp_test"),
     Path("tests/fixtures/esklp_test"),
 )
-TN_COLUMN_ALIASES = {
-    "trade_name": (
-        "trade_name",
-        "торговое наименование",
-        "торговое название",
-        "тн",
-        "наименование лп",
-    ),
-    "mnn": (
-        "mnn",
-        "мнн",
-        "международное непатентованное наименование",
-        "стандартизованное мнн",
-    ),
-    "form": (
-        "form",
-        "лекарственная форма",
-        "стандартизованная лекарственная форма",
-        "форма выпуска",
-        "форма",
-    ),
-    "dosage": (
-        "dosage",
-        "дозировка",
-        "стандартизованная дозировка",
-        "доза",
-    ),
-    "smnn_code": (
-        "smnn_code",
-        "код смнн",
-        "код узла смнн",
-        "смнн код",
-    ),
+TN_SOURCE_COLUMNS = {
+    "trade_name": "Торговое наименование",
+    "smnn_code": "Код узла СМНН",
+    "mnn": "Стандартизованное МНН",
+    "form": "Стандартизованная лекарственная форма",
+    "dosage_value": "Стандартизованная дозировка кол-во",
+    "dosage_unit": "Единица измерения",
+    "dosage": "Список нормализованных лекарственных форм и дозировок",
 }
-TN_REAL_POSITION_COLUMNS = {
-    "trade_name": 0,
-    "smnn_code": 2,
-    "mnn": 3,
-    "form": 4,
-    "dosage_value": 5,
-    "dosage_unit": 6,
-    "dosage": 11,
+SMNN_SOURCE_COLUMNS = {
+    "smnn_code": "Код узла СМНН",
+    "ftg_name": "Наименование ФТГ",
+    "atx_code": "код АТХ",
+    "atx_name": "Наименование",
 }
-TN_TEST_POSITION_COLUMNS = {
-    "trade_name": 0,
-    "mnn": 1,
-    "form": 2,
-    "dosage": 3,
-    "smnn_code": 4,
-}
-SMNN_POSITION_COLUMNS = {
-    "smnn_code": 1,
-    "ftg_name": 12,
-    "atx_code": 13,
-    "atx_name": 14,
-}
+TN_COLUMNS = ["trade_name", "mnn", "form", "dosage", "smnn_code"]
+SMNN_COLUMNS = ["smnn_code", "atx_code", "atx_name", "ftg_name"]
 ESKLP_COLUMNS = [
     "trade_name",
     "mnn",
@@ -79,7 +40,6 @@ ESKLP_COLUMNS = [
     "atx_name",
     "ftg_name",
 ]
-SMNN_COLUMNS = ["smnn_code", "atx_code", "atx_name", "ftg_name"]
 
 
 class EsklpLookup:
@@ -147,7 +107,7 @@ class EsklpLookup:
 
         df = pd.concat(frames, ignore_index=True)
         df = df.dropna(subset=["trade_name"])
-        df = df.drop_duplicates(subset=["trade_name", "mnn", "form", "dosage", "smnn_code"])
+        df = df.drop_duplicates(subset=TN_COLUMNS)
         return df.reset_index(drop=True)
 
     def _load_smnn_dataframe(self) -> pd.DataFrame:
@@ -181,118 +141,67 @@ def _resolve_esklp_dir(esklp_dir: str | Path | None) -> Path:
 
 
 def _read_tn_file(path: Path) -> pd.DataFrame:
-    raw = _read_esklp_excel(path, "tn_smnn")
+    raw = _read_esklp_excel(path)
     if raw.empty:
         return _empty_tn_df()
 
-    position_columns = (
-        TN_REAL_POSITION_COLUMNS
-        if len(raw.columns) >= 12
-        else TN_TEST_POSITION_COLUMNS
+    _require_columns(path, raw, TN_SOURCE_COLUMNS.values())
+    df = pd.DataFrame(
+        {
+            "trade_name": raw[TN_SOURCE_COLUMNS["trade_name"]],
+            "mnn": raw[TN_SOURCE_COLUMNS["mnn"]],
+            "form": raw[TN_SOURCE_COLUMNS["form"]],
+            "dosage": raw[TN_SOURCE_COLUMNS["dosage"]],
+            "smnn_code": raw[TN_SOURCE_COLUMNS["smnn_code"]],
+        }
     )
-    if _has_position_columns(raw, position_columns):
-        df = _read_position_columns(raw, position_columns)
-        if "dosage" not in df.columns:
-            df["dosage"] = None
-        if "dosage_value" in df.columns and "dosage_unit" in df.columns:
-            df["dosage"] = df.apply(_join_dosage, axis=1)
-            df = df.drop(columns=["dosage_value", "dosage_unit"])
-        return _clean_tn_dataframe(df)
-
-    columns = _map_columns(raw.columns, TN_COLUMN_ALIASES)
-    data: dict[str, pd.Series] = {}
-    for target in TN_COLUMN_ALIASES:
-        source = columns.get(target)
-        data[target] = raw[source] if source is not None else pd.Series([None] * len(raw), dtype="object")
-
-    return _clean_tn_dataframe(pd.DataFrame(data))
+    df["dosage"] = df["dosage"].where(
+        df["dosage"].map(_clean_value).notna(),
+        raw.apply(_join_dosage, axis=1),
+    )
+    return _clean_dataframe(df, TN_COLUMNS)
 
 
 def _read_smnn_file(path: Path) -> pd.DataFrame:
-    raw = _read_esklp_excel(path, "esklp_smnn")
+    raw = _read_esklp_excel(path)
     if raw.empty:
         return _empty_smnn_df()
 
-    df = _read_position_columns(raw, SMNN_POSITION_COLUMNS)
-    for column in df.columns:
-        df[column] = df[column].map(_clean_value)
-    df = df[~df["smnn_code"].isin({"col2", "Код узла СМНН"})]
-    return df[SMNN_COLUMNS]
-
-
-def _read_esklp_excel(path: Path, sheet_prefix: str) -> pd.DataFrame:
-    sheet_name = _find_sheet_name(path, sheet_prefix)
-    return pd.read_excel(
-        path,
-        sheet_name=sheet_name,
-        skiprows=4,
-        header=None,
-        dtype=str,
+    _require_columns(path, raw, SMNN_SOURCE_COLUMNS.values())
+    df = pd.DataFrame(
+        {
+            "smnn_code": raw[SMNN_SOURCE_COLUMNS["smnn_code"]],
+            "atx_code": raw[SMNN_SOURCE_COLUMNS["atx_code"]],
+            "atx_name": raw[SMNN_SOURCE_COLUMNS["atx_name"]],
+            "ftg_name": raw[SMNN_SOURCE_COLUMNS["ftg_name"]],
+        }
     )
+    return _clean_dataframe(df, SMNN_COLUMNS)
 
 
-def _has_position_columns(
-    raw: pd.DataFrame,
-    position_columns: dict[str, int],
-) -> bool:
-    return bool(position_columns) and len(raw.columns) > max(position_columns.values())
+def _read_esklp_excel(path: Path) -> pd.DataFrame:
+    return pd.read_excel(path, dtype=str)
 
 
-def _read_position_columns(
-    raw: pd.DataFrame,
-    position_columns: dict[str, int],
-) -> pd.DataFrame:
-    data: dict[str, pd.Series] = {}
-    for target, index in position_columns.items():
-        data[target] = (
-            raw.iloc[:, index]
-            if len(raw.columns) > index
-            else pd.Series([None] * len(raw), dtype="object")
-        )
-    return pd.DataFrame(data)
+def _require_columns(path: Path, df: pd.DataFrame, columns: Any) -> None:
+    missing = [column for column in columns if column not in df.columns]
+    if missing:
+        missing_text = ", ".join(missing)
+        raise ValueError(f"{path.name}: missing columns: {missing_text}")
 
 
-def _clean_tn_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+def _clean_dataframe(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     for column in df.columns:
         df[column] = df[column].map(_clean_value)
-    df = df[["trade_name", "mnn", "form", "dosage", "smnn_code"]]
-    df = df[~df["trade_name"].isin({"trade_name", "Торговое наименование"})]
-    return df
+    return df[columns]
 
 
 def _join_dosage(row: pd.Series) -> str | None:
-    dosage = _clean_value(row.get("dosage"))
-    if dosage:
-        return dosage
-
-    value = _clean_value(row.get("dosage_value"))
-    unit = _clean_value(row.get("dosage_unit"))
+    value = _clean_value(row.get(TN_SOURCE_COLUMNS["dosage_value"]))
+    unit = _clean_value(row.get(TN_SOURCE_COLUMNS["dosage_unit"]))
     if value and unit:
         return f"{value} {unit}"
     return value or unit
-
-
-def _find_sheet_name(path: Path, sheet_prefix: str) -> str | int:
-    excel = pd.ExcelFile(path)
-    for sheet_name in excel.sheet_names:
-        if sheet_name.casefold().startswith(sheet_prefix.casefold()):
-            return sheet_name
-    return 0
-
-
-def _map_columns(columns: pd.Index, aliases_by_target: dict[str, tuple[str, ...]]) -> dict[str, Any]:
-    mapped: dict[str, Any] = {}
-    normalized_columns = {column: _normalize_header(column) for column in columns}
-    for target, aliases in aliases_by_target.items():
-        for column, normalized in normalized_columns.items():
-            if normalized in aliases or any(alias in normalized for alias in aliases):
-                mapped[target] = column
-                break
-    return mapped
-
-
-def _normalize_header(value: object) -> str:
-    return str(value or "").strip().casefold().replace("ё", "е")
 
 
 def _clean_value(value: object) -> str | None:
@@ -303,7 +212,7 @@ def _clean_value(value: object) -> str | None:
 
 
 def _empty_tn_df() -> pd.DataFrame:
-    return pd.DataFrame(columns=["trade_name", "mnn", "form", "dosage", "smnn_code"])
+    return pd.DataFrame(columns=TN_COLUMNS)
 
 
 def _empty_smnn_df() -> pd.DataFrame:
