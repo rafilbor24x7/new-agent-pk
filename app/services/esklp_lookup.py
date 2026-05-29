@@ -47,27 +47,14 @@ class EsklpLookup:
         self.esklp_dir = _resolve_esklp_dir(esklp_dir)
         self.score_cutoff = score_cutoff
         self.connection = duckdb.connect(database=":memory:")
+        self.smnn_load_errors: list[str] = []
         self._tn_df = self._load_tn_dataframe()
         self._smnn_df = self._load_smnn_dataframe()
         self.connection.register("esklp_tn_df", self._tn_df)
         self.connection.register("esklp_smnn_df", self._smnn_df)
         self.connection.execute("CREATE TABLE esklp_tn AS SELECT * FROM esklp_tn_df")
         self.connection.execute("CREATE TABLE esklp_smnn AS SELECT * FROM esklp_smnn_df")
-        self._df = self.connection.execute(
-            """
-            SELECT
-                tn.trade_name,
-                tn.mnn,
-                tn.form,
-                tn.dosage,
-                tn.smnn_code,
-                smnn.atx_code,
-                smnn.atx_name,
-                smnn.ftg_name
-            FROM esklp_tn tn
-            LEFT JOIN esklp_smnn smnn USING (smnn_join_key)
-            """
-        ).fetch_df()
+        self._df = self._build_search_dataframe()
 
     def search(self, trade_name: str, limit: int = 3) -> list[dict[str, Any]]:
         query = str(trade_name or "").strip()
@@ -115,7 +102,13 @@ class EsklpLookup:
         if not files:
             return _empty_smnn_df()
 
-        frames = [_read_smnn_file(path) for path in files]
+        frames = []
+        for path in files:
+            try:
+                frames.append(_read_smnn_file(path))
+            except Exception as exc:  # pragma: no cover - defensive production fallback
+                self.smnn_load_errors.append(f"{path.name}: {exc}")
+
         frames = [frame for frame in frames if not frame.empty]
         if not frames:
             return _empty_smnn_df()
@@ -124,6 +117,25 @@ class EsklpLookup:
         df = df.dropna(subset=["smnn_join_key"])
         df = df.drop_duplicates(subset=["smnn_join_key"])
         return df.reset_index(drop=True)
+
+    def _build_search_dataframe(self) -> pd.DataFrame:
+        tn = self._tn_df.copy()
+        if tn.empty:
+            return pd.DataFrame(columns=ESKLP_COLUMNS)
+
+        classification_columns = ["smnn_join_key", "atx_code", "atx_name", "ftg_name"]
+        if self._smnn_df.empty or not set(classification_columns).issubset(self._smnn_df.columns):
+            joined = tn.copy()
+            for column in ("atx_code", "atx_name", "ftg_name"):
+                joined[column] = None
+        else:
+            smnn = self._smnn_df[classification_columns]
+            joined = tn.merge(smnn, how="left", on="smnn_join_key")
+
+        for column in ESKLP_COLUMNS:
+            if column not in joined.columns:
+                joined[column] = None
+        return joined[ESKLP_COLUMNS]
 
 
 def _resolve_esklp_dir(esklp_dir: str | Path | None) -> Path:
