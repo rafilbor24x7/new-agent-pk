@@ -5,10 +5,10 @@
 ## ТЕКУЩИЙ СТАТУС
 
 **Дата обновления:** 2026-05-29  
-**Фаза:** Bootstrap / стабилизация Render и ЕСКЛП  
-**Последняя задача:** фиксация состояния обвязки и исправление join в `esklp_lookup.py`  
+**Фаза:** завершение спринта / эксплуатационная документация  
+**Последняя задача:** финальное обновление обвязки и README перед завершением спринта  
 **Статус сборки:** все задачи из `feature_list.json` в `passing`  
-**Статус тестов:** `pytest` проходит, `ruff check .` чистый  
+**Статус тестов:** `python -m pytest` проходит, `ruff check .` чистый  
 **Render:** `GET https://new-agent-pk.onrender.com/health` возвращает `{"status":"ok"}`  
 
 ---
@@ -33,20 +33,22 @@
 
 ### ЕСКЛП
 
-- `EsklpLookup` читает упрощённые Excel-файлы ЕСКЛП с одной строкой заголовков, без `skiprows`.
+- `EsklpLookup` читает упрощённые `.xlsx` файлы ЕСКЛП с одной строкой заголовков, без `skiprows`.
+- Чтение ЕСКЛП идёт через `pd.read_excel(..., engine="openpyxl", dtype=str)`.
 - `tn_smnn_*.xlsx` читается по колонкам: `Торговое наименование`, `Код узла СМНН`, `Стандартизованное МНН`, `Стандартизованная лекарственная форма`, дозировка.
 - `esklp_smnn_*.xlsx` читается по колонкам: `Код узла СМНН`, `Наименование ФТГ`, `код АТХ`, `Наименование`.
 - `esklp_tn` и `esklp_smnn` связываются через нормализованный ключ СМНН, устойчивый к пробелам, неразрывным пробелам и суффиксу `.0`.
-- `search_esklp` возвращает `mnn`, `form`, `dosage`, `smnn_code`, `atx_code`, `atx_name`, `ftg_name`, `score`.
+- `esklp_smnn` является необязательным: если он не загрузился, поиск всё равно работает по `tn_smnn`, а `atx_code`, `atx_name`, `ftg_name` возвращаются как `null`.
 - Проверка на реальной локальной папке `esklp_20260507_excel_00001`: 22 236 строк, `Ибупрофен` находится с `M01AE01`, `Ибупрофен`, `НПВП`.
 
 ### Render/admin endpoints
 
-- Добавлен `POST /admin/upload_esklp` с защитой `X-Admin-Token` из `ADMIN_TOKEN`.
-- Добавлен `POST /admin/reload_esklp`: сразу возвращает `{"status":"loading"}`, загрузка идёт в фоне.
-- Добавлен `GET /admin/esklp_status`: показывает `ESKLP_DIR`, список `.xlsx`, `esklp_tn_rows`, `status`, `error`, `sample`.
+- `POST /admin/upload_esklp` загружает `.xlsx` файлы ЕСКЛП на Render, защищён `X-Admin-Token`.
+- `POST /admin/reload_esklp` сразу возвращает `{"status":"loading"}`, загрузка идёт в фоне.
+- `GET /admin/esklp_status` показывает `ESKLP_DIR`, список `.xlsx`, `esklp_tn_rows`, `columns`, `status`, `error`, `sample`.
+- `POST /admin/esklp_debug` показывает первые строки `esklp_tn`, SQL `LIKE`-совпадения и rapidfuzz-score для диагностики поиска.
 - `EsklpLookup` закреплён как singleton на процесс; reload атомарно подменяет экземпляр после успешной загрузки.
-- Скрипт `scripts/upload_esklp.py` загружает локальные `.xlsx` из `ESKLP_DIR` на Render.
+- `scripts/upload_esklp.py` загружает локальные `.xlsx` из `ESKLP_DIR` на Render.
 
 ### Архитектурные решения
 
@@ -56,9 +58,11 @@
 
 ## ЧТО ЗАБЛОКИРОВАНО
 
-Нет активных блокеров в `feature_list.json`.
+Активных блокеров в `feature_list.json` нет.
 
-Операционный риск: после каждого деплоя Render нужно вызвать `/admin/reload_esklp`, если файлы ЕСКЛП уже загружены на диск, чтобы singleton подхватил актуальные данные.
+Операционное условие: после деплоя или загрузки файлов ЕСКЛП на Render нужно вызвать `/admin/reload_esklp`, чтобы singleton подхватил актуальные данные.
+
+Наблюдение: поиск по латинице вроде `Ibuprofen` может возвращать пустой список, если в ЕСКЛП торговые наименования лежат кириллицей. Для диагностики добавлен `/admin/esklp_debug`; отдельная задача на транслитерацию пока не заведена.
 
 ---
 
@@ -72,19 +76,20 @@ Invoke-WebRequest -UseBasicParsing https://new-agent-pk.onrender.com/health -Tim
 
 Последний подтверждённый локальный результат:
 
-- `python -m pytest` - `16 passed`
+- `python -m pytest` - `19 passed`
 - `ruff check .` - `All checks passed`
 - Render `/health` - `{"status":"ok"}`
 
 ---
 
-## СЛЕДУЮЩИЙ ШАГ
+## ПЕРВЫЙ ЗАПУСК НА RENDER
 
-После деплоя текущего коммита на Render:
-
-1. Вызвать `POST /admin/reload_esklp`.
-2. Проверить `GET /admin/esklp_status`: `status=ready`, `esklp_tn_rows=22236`, `sample` заполнен.
-3. Проверить `POST /tools/search_esklp` с `{"trade_name":"Ибупрофен"}`.
+1. Задать ENV-переменные на Render: `ADMIN_TOKEN`, `ESKLP_DIR`, `DEEPSEEK_API_KEY` при необходимости LLM.
+2. Задать локально те же `ADMIN_TOKEN` и `ESKLP_DIR`, где `ESKLP_DIR` указывает на папку с `.xlsx` файлами ЕСКЛП.
+3. Выполнить `python scripts/upload_esklp.py`.
+4. Вызвать `POST https://new-agent-pk.onrender.com/admin/reload_esklp` с заголовком `X-Admin-Token`.
+5. Проверить `GET /admin/esklp_status`: `status=ready`, `esklp_tn_rows=22236`, `sample` и `columns` заполнены.
+6. Проверить `POST /tools/search_esklp` с `{"trade_name":"Ибупрофен"}`.
 
 ---
 
@@ -93,8 +98,9 @@ Invoke-WebRequest -UseBasicParsing https://new-agent-pk.onrender.com/health -Tim
 | Сессия | Дата | Завершено | Итог |
 |---|---|---|---|
 | 1 | 2026-05-27/28 | F-001, F-002, F-101, F-102, F-201, F-203, F-202, F-205, F-204, F-301, F-302, F-401 | Локальная цепочка готова, D-007 добавил АТХ/ФТГ |
-| 2 | 2026-05-29 | F-003, F-402, admin upload/reload/status, Render upload flow, simplified ESKLP parser | Render health проверен, ЕСКЛП грузится асинхронно, lookup singleton, parser читает упрощённые Excel по заголовкам |
+| 2 | 2026-05-29 | F-003, F-402, admin upload/reload/status, Render upload flow, simplified ESKLP parser | Render health проверен, ЕСКЛП грузится асинхронно, lookup singleton |
 | 3 | 2026-05-29 | Обновление обвязки, фиксация статусов, fix join в `esklp_lookup.py` | Все задачи в `passing`; join по СМНН нормализован |
+| 4 | 2026-05-29 | openpyxl, optional `esklp_smnn`, status columns, `/admin/esklp_debug`, README | Спринт закрыт документацией первого запуска и диагностикой Render |
 
 ---
 
