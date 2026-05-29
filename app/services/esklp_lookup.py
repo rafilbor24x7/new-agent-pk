@@ -47,6 +47,22 @@ TN_COLUMN_ALIASES = {
         "смнн код",
     ),
 }
+TN_REAL_POSITION_COLUMNS = {
+    "trade_name": 0,
+    "smnn_code": 2,
+    "mnn": 3,
+    "form": 4,
+    "dosage_value": 5,
+    "dosage_unit": 6,
+    "dosage": 11,
+}
+TN_TEST_POSITION_COLUMNS = {
+    "trade_name": 0,
+    "mnn": 1,
+    "form": 2,
+    "dosage": 3,
+    "smnn_code": 4,
+}
 SMNN_POSITION_COLUMNS = {
     "smnn_code": 1,
     "ftg_name": 12,
@@ -169,16 +185,27 @@ def _read_tn_file(path: Path) -> pd.DataFrame:
     if raw.empty:
         return _empty_tn_df()
 
+    position_columns = (
+        TN_REAL_POSITION_COLUMNS
+        if len(raw.columns) >= 12
+        else TN_TEST_POSITION_COLUMNS
+    )
+    if _has_position_columns(raw, position_columns):
+        df = _read_position_columns(raw, position_columns)
+        if "dosage" not in df.columns:
+            df["dosage"] = None
+        if "dosage_value" in df.columns and "dosage_unit" in df.columns:
+            df["dosage"] = df.apply(_join_dosage, axis=1)
+            df = df.drop(columns=["dosage_value", "dosage_unit"])
+        return _clean_tn_dataframe(df)
+
     columns = _map_columns(raw.columns, TN_COLUMN_ALIASES)
     data: dict[str, pd.Series] = {}
     for target in TN_COLUMN_ALIASES:
         source = columns.get(target)
         data[target] = raw[source] if source is not None else pd.Series([None] * len(raw), dtype="object")
 
-    df = pd.DataFrame(data)
-    for column in df.columns:
-        df[column] = df[column].map(_clean_value)
-    return df
+    return _clean_tn_dataframe(pd.DataFrame(data))
 
 
 def _read_smnn_file(path: Path) -> pd.DataFrame:
@@ -186,19 +213,63 @@ def _read_smnn_file(path: Path) -> pd.DataFrame:
     if raw.empty:
         return _empty_smnn_df()
 
-    data: dict[str, pd.Series] = {}
-    for target, index in SMNN_POSITION_COLUMNS.items():
-        data[target] = raw.iloc[:, index] if len(raw.columns) > index else pd.Series([None] * len(raw), dtype="object")
-
-    df = pd.DataFrame(data)
+    df = _read_position_columns(raw, SMNN_POSITION_COLUMNS)
     for column in df.columns:
         df[column] = df[column].map(_clean_value)
+    df = df[~df["smnn_code"].isin({"col2", "Код узла СМНН"})]
     return df[SMNN_COLUMNS]
 
 
 def _read_esklp_excel(path: Path, sheet_prefix: str) -> pd.DataFrame:
     sheet_name = _find_sheet_name(path, sheet_prefix)
-    return pd.read_excel(path, sheet_name=sheet_name, skiprows=4, dtype=str)
+    return pd.read_excel(
+        path,
+        sheet_name=sheet_name,
+        skiprows=4,
+        header=None,
+        dtype=str,
+    )
+
+
+def _has_position_columns(
+    raw: pd.DataFrame,
+    position_columns: dict[str, int],
+) -> bool:
+    return bool(position_columns) and len(raw.columns) > max(position_columns.values())
+
+
+def _read_position_columns(
+    raw: pd.DataFrame,
+    position_columns: dict[str, int],
+) -> pd.DataFrame:
+    data: dict[str, pd.Series] = {}
+    for target, index in position_columns.items():
+        data[target] = (
+            raw.iloc[:, index]
+            if len(raw.columns) > index
+            else pd.Series([None] * len(raw), dtype="object")
+        )
+    return pd.DataFrame(data)
+
+
+def _clean_tn_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    for column in df.columns:
+        df[column] = df[column].map(_clean_value)
+    df = df[["trade_name", "mnn", "form", "dosage", "smnn_code"]]
+    df = df[~df["trade_name"].isin({"trade_name", "Торговое наименование"})]
+    return df
+
+
+def _join_dosage(row: pd.Series) -> str | None:
+    dosage = _clean_value(row.get("dosage"))
+    if dosage:
+        return dosage
+
+    value = _clean_value(row.get("dosage_value"))
+    unit = _clean_value(row.get("dosage_unit"))
+    if value and unit:
+        return f"{value} {unit}"
+    return value or unit
 
 
 def _find_sheet_name(path: Path, sheet_prefix: str) -> str | int:

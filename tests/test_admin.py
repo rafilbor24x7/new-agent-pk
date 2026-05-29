@@ -1,6 +1,8 @@
+import time
+
 from fastapi.testclient import TestClient
 
-from app.main import app, get_esklp_lookup
+from app.main import app, get_esklp_lookup, _reload_esklp_for_tests
 
 
 def test_upload_esklp_requires_admin_token(monkeypatch, tmp_path):
@@ -64,6 +66,7 @@ def test_esklp_status_returns_dir_files_and_rows(monkeypatch):
     monkeypatch.setenv("ADMIN_TOKEN", "secret")
     monkeypatch.setenv("ESKLP_DIR", "data/esklp_test")
     get_esklp_lookup.cache_clear()
+    _reload_esklp_for_tests()
     client = TestClient(app)
 
     response = client.get(
@@ -76,6 +79,8 @@ def test_esklp_status_returns_dir_files_and_rows(monkeypatch):
     assert data["esklp_dir"] == "data/esklp_test"
     assert data["files"] == ["esklp_smnn_test.xlsx", "tn_smnn_test.xlsx"]
     assert data["esklp_tn_rows"] == 5
+    assert data["status"] == "ready"
+    assert data["error"] is None
 
 
 def test_reload_esklp_requires_admin_token(monkeypatch):
@@ -103,4 +108,20 @@ def test_reload_esklp_clears_cached_empty_lookup(monkeypatch, tmp_path):
     )
 
     assert response.status_code == 200
-    assert response.json() == {"reloaded": True, "rows": 5}
+    assert response.json() == {"status": "loading"}
+
+    status = None
+    for _ in range(20):
+        status_response = client.get(
+            "/admin/esklp_status",
+            headers={"X-Admin-Token": "secret"},
+        )
+        status = status_response.json()
+        if status["status"] == "ready":
+            break
+        time.sleep(0.1)
+
+    assert status is not None
+    assert status["status"] == "ready"
+    assert status["esklp_tn_rows"] == 5
+    assert status["error"] is None
