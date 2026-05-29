@@ -34,6 +34,7 @@ def test_upload_esklp_saves_file(monkeypatch, tmp_path):
     assert data["path"] == str(saved_path)
     assert saved_path.read_bytes() == b"xlsx-bytes"
 
+
 def test_upload_esklp_requires_esklp_dir(monkeypatch):
     monkeypatch.setenv("ADMIN_TOKEN", "secret")
     monkeypatch.delenv("ESKLP_DIR", raising=False)
@@ -75,3 +76,31 @@ def test_esklp_status_returns_dir_files_and_rows(monkeypatch):
     assert data["esklp_dir"] == "data/esklp_test"
     assert data["files"] == ["esklp_smnn_test.xlsx", "tn_smnn_test.xlsx"]
     assert data["esklp_tn_rows"] == 5
+
+
+def test_reload_esklp_requires_admin_token(monkeypatch):
+    monkeypatch.setenv("ADMIN_TOKEN", "secret")
+    monkeypatch.setenv("ESKLP_DIR", "data/esklp_test")
+    client = TestClient(app)
+
+    response = client.post("/admin/reload_esklp")
+
+    assert response.status_code == 401
+
+
+def test_reload_esklp_clears_cached_empty_lookup(monkeypatch, tmp_path):
+    monkeypatch.setenv("ADMIN_TOKEN", "secret")
+    monkeypatch.setenv("ESKLP_DIR", str(tmp_path))
+    get_esklp_lookup.cache_clear()
+    assert get_esklp_lookup().connection.execute("SELECT count(*) FROM esklp_tn").fetchone()[0] == 0
+
+    monkeypatch.setenv("ESKLP_DIR", "data/esklp_test")
+    client = TestClient(app)
+
+    response = client.post(
+        "/admin/reload_esklp",
+        headers={"X-Admin-Token": "secret"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"reloaded": True, "rows": 5}

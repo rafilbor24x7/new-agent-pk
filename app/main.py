@@ -73,6 +73,21 @@ def esklp_status(
     }
 
 
+@app.post("/admin/reload_esklp")
+def reload_esklp(
+    x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
+) -> dict[str, object]:
+    _require_admin_token(x_admin_token)
+
+    if not os.getenv("ESKLP_DIR"):
+        raise HTTPException(status_code=503, detail="ESKLP_DIR is not configured")
+
+    get_esklp_lookup.cache_clear()
+    lookup = get_esklp_lookup()
+    rows = int(lookup.connection.execute("SELECT count(*) FROM esklp_tn").fetchone()[0])
+    return {"reloaded": True, "rows": rows}
+
+
 def _require_admin_token(x_admin_token: str | None) -> None:
     admin_token = os.getenv("ADMIN_TOKEN")
     if not admin_token:
