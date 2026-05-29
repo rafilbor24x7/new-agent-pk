@@ -65,7 +65,7 @@ class EsklpLookup:
                 smnn.atx_name,
                 smnn.ftg_name
             FROM esklp_tn tn
-            LEFT JOIN esklp_smnn smnn USING (smnn_code)
+            LEFT JOIN esklp_smnn smnn USING (smnn_join_key)
             """
         ).fetch_df()
 
@@ -106,8 +106,8 @@ class EsklpLookup:
             return _empty_tn_df()
 
         df = pd.concat(frames, ignore_index=True)
-        df = df.dropna(subset=["trade_name"])
-        df = df.drop_duplicates(subset=TN_COLUMNS)
+        df = df.dropna(subset=["trade_name", "smnn_join_key"])
+        df = df.drop_duplicates(subset=TN_COLUMNS + ["smnn_join_key"])
         return df.reset_index(drop=True)
 
     def _load_smnn_dataframe(self) -> pd.DataFrame:
@@ -121,8 +121,8 @@ class EsklpLookup:
             return _empty_smnn_df()
 
         df = pd.concat(frames, ignore_index=True)
-        df = df.dropna(subset=["smnn_code"])
-        df = df.drop_duplicates(subset=["smnn_code"])
+        df = df.dropna(subset=["smnn_join_key"])
+        df = df.drop_duplicates(subset=["smnn_join_key"])
         return df.reset_index(drop=True)
 
 
@@ -159,6 +159,7 @@ def _read_tn_file(path: Path) -> pd.DataFrame:
         df["dosage"].map(_clean_value).notna(),
         raw.apply(_join_dosage, axis=1),
     )
+    df["smnn_join_key"] = df["smnn_code"].map(_normalize_smnn_code)
     return _clean_dataframe(df, TN_COLUMNS)
 
 
@@ -176,6 +177,7 @@ def _read_smnn_file(path: Path) -> pd.DataFrame:
             "ftg_name": raw[SMNN_SOURCE_COLUMNS["ftg_name"]],
         }
     )
+    df["smnn_join_key"] = df["smnn_code"].map(_normalize_smnn_code)
     return _clean_dataframe(df, SMNN_COLUMNS)
 
 
@@ -193,7 +195,7 @@ def _require_columns(path: Path, df: pd.DataFrame, columns: Any) -> None:
 def _clean_dataframe(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     for column in df.columns:
         df[column] = df[column].map(_clean_value)
-    return df[columns]
+    return df[columns + ["smnn_join_key"]]
 
 
 def _join_dosage(row: pd.Series) -> str | None:
@@ -211,9 +213,19 @@ def _clean_value(value: object) -> str | None:
     return text or None
 
 
+def _normalize_smnn_code(value: object) -> str | None:
+    text = _clean_value(value)
+    if text is None:
+        return None
+    text = text.replace("\u00a0", "").replace(" ", "")
+    if text.endswith(".0"):
+        text = text[:-2]
+    return text or None
+
+
 def _empty_tn_df() -> pd.DataFrame:
-    return pd.DataFrame(columns=TN_COLUMNS)
+    return pd.DataFrame(columns=TN_COLUMNS + ["smnn_join_key"])
 
 
 def _empty_smnn_df() -> pd.DataFrame:
-    return pd.DataFrame(columns=SMNN_COLUMNS)
+    return pd.DataFrame(columns=SMNN_COLUMNS + ["smnn_join_key"])

@@ -53,12 +53,12 @@
                                             "behavior":  "GET https://\u003crender-url\u003e/health → {\"status\": \"ok\"}",
                                             "verification_cmd":  "curl -s https://\u003cRENDER_URL\u003e/health",
                                             "expected_output":  "{\"status\":\"ok\"}",
-                                            "status":  "blocked",
+                                            "status":  "passing",
                                             "priority":  "critical",
                                             "depends_on":  [
                                                                "F-002"
                                                            ],
-                                            "notes":  "Создать новый Web Service на Render. URL подставить после деплоя."
+                                            "notes":  "Render Web Service создан: https://new-agent-pk.onrender.com. GET /health проверен 2026-05-29."
                                         }
                                     ]
                    },
@@ -70,7 +70,7 @@
                                         {
                                             "id":  "F-101",
                                             "title":  "Загрузка ЕСКЛП в DuckDB при старте",
-                                            "behavior":  "esklp_lookup.py читает tn_smnn_*.xlsx из ESKLP_DIR, загружает в DuckDB таблицу esklp_tn. Колонки: trade_name, mnn, form, dosage. Шапка пропускается (skiprows=4).",
+                                            "behavior":  "esklp_lookup.py читает упрощённые tn_smnn_*.xlsx и esklp_smnn_*.xlsx из ESKLP_DIR без skiprows, по именам колонок. Загружает DuckDB таблицы esklp_tn/esklp_smnn и связывает их по нормализованному коду СМНН.",
                                             "verification_cmd":  "ESKLP_DIR=data/esklp_test python -c \"from app.services.esklp_lookup import EsklpLookup; e=EsklpLookup(); r=e.search(\u0027Ибупрофен\u0027); assert len(r)\u003e0; print(\u0027OK\u0027)\"",
                                             "expected_output":  "OK",
                                             "status":  "passing",
@@ -78,7 +78,7 @@
                                             "depends_on":  [
                                                                "F-001"
                                                            ],
-                                            "notes":  "Реальный ЕСКЛП в data/esklp_*/ — не коммитить. Для теста создать минимальный тестовый fixtures/esklp_test/tn_smnn_test.xlsx с 5 строками."
+                                            "notes":  "Реальный ЕСКЛП в data/esklp_*/ — не коммитить. Тестовые data/esklp_test/*.xlsx используют новую структуру с одной строкой заголовков; join устойчив к пробелам в Код узла СМНН."
                                         },
                                         {
                                             "id":  "F-102",
@@ -103,7 +103,7 @@
                                         {
                                             "id":  "F-201",
                                             "title":  "POST /tools/search_esklp — поиск МНН по торговому названию",
-                                            "behavior":  "Принимает {trade_name}. Ищет в esklp_tn через rapidfuzz. Возвращает [{mnn, form, dosage, score}] топ-3. Если не найдено — пустой список.",
+                                            "behavior":  "Принимает {trade_name}. Ищет в esklp_tn через rapidfuzz. Возвращает топ-3 с mnn, form, dosage, smnn_code, atx_code, atx_name, ftg_name, score. Если не найдено — пустой список.",
                                             "verification_cmd":  "curl -s -X POST http://localhost:8000/tools/search_esklp -H \u0027Content-Type: application/json\u0027 -d \u0027{\"trade_name\": \"Ибупрофен\"}\u0027 | python -c \"import sys,json; d=json.load(sys.stdin); assert len(d)\u003e0; assert \u0027mnn\u0027 in d[0]; print(\u0027OK\u0027)\"",
                                             "expected_output":  "OK",
                                             "status":  "passing",
@@ -223,12 +223,12 @@
                                             "behavior":  "Все тесты зелёные, линтер чистый, Render URL отвечает, OpenAPI схема доступна публично.",
                                             "verification_cmd":  "pytest \u0026\u0026 ruff check . --no-cache",
                                             "expected_output":  "passed / All checks passed",
-                                            "status":  "blocked",
+                                            "status":  "passing",
                                             "priority":  "critical",
                                             "depends_on":  [
                                                                "F-401"
                                                            ],
-                                            "notes":  "Локально pytest и ruff проходят; публичный Render URL заблокирован F-003/RENDER_URL."
+                                            "notes":  "Локально pytest и ruff проходят; публичный Render health проверен на https://new-agent-pk.onrender.com/health."
                                         }
                                     ]
                    }
@@ -237,9 +237,9 @@
                     "total":  14,
                     "not_started":  0,
                     "active":  0,
-                    "blocked":  2,
-                    "passing":  12,
-                    "last_updated":  "2026-05-28",
+                    "blocked":  0,
+                    "passing":  14,
+                    "last_updated":  "2026-05-29",
                     "note":  "Обновлять после каждой сессии"
                 }
 }

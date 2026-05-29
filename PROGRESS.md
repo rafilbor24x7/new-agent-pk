@@ -1,171 +1,101 @@
-# PROGRESS.md — Трекер прогресса
+# PROGRESS.md - трекер прогресса
 
 ---
 
 ## ТЕКУЩИЙ СТАТУС
 
-**Фаза:** Bootstrap
-**Последняя задача:** F-401 — E2E parse → search_esklp → match_pk → build_excel
-**Статус сборки:** ✅ verification_cmd F-401 прошёл (`PASSED`); F-402 локально зелёная, публичный URL blocked
-**Статус тестов:** ✅ `pytest` прошёл (9 passed), `ruff check .` чистый
+**Дата обновления:** 2026-05-29  
+**Фаза:** Bootstrap / стабилизация Render и ЕСКЛП  
+**Последняя задача:** фиксация состояния обвязки и исправление join в `esklp_lookup.py`  
+**Статус сборки:** все задачи из `feature_list.json` в `passing`  
+**Статус тестов:** `pytest` проходит, `ruff check .` чистый  
+**Render:** `GET https://new-agent-pk.onrender.com/health` возвращает `{"status":"ok"}`  
 
 ---
 
 ## ЧТО СДЕЛАНО
 
-### F-001 — Репозиторий, зависимости, структура папок
+### Базовая инфраструктура
 
-- Инициализирован git-репозиторий.
-- Создана структура `app/`, `app/api/`, `app/services/`, `app/models/`, `app/db/`, `data/`, `tests/fixtures/` по `ARCHITECTURE.md`.
-- Скопированы из `../agentKP` модули `parser_offer.py`, `normalizer.py`, `matcher.py`, `excel_builder.py`, `models/sku.py`.
-- Созданы `requirements.txt`, `.gitignore`, `.env.example`, `render.yaml`, `pytest.ini`.
-- Скопированы фикстуры `base_sample.xlsx` и `offer_sample.xlsx` в `tests/fixtures/`.
-- Создана минимальная фикстура `tests/fixtures/esklp_test/tn_smnn_test.xlsx` на 5 строк.
-- Реальный `pk_list.json` на 295 ПК скопирован локально в `data/pk_list.json`; файл не добавлялся в git без отдельного разрешения.
-- Добавлен минимальный bootstrap-тест импортов зависимостей.
+- Инициализирован проект `new-agent-pk` и GitHub-репозиторий.
+- Собран FastAPI backend с `/health`, `/tools/*`, OpenAPI-схемой и Render-конфигурацией.
+- Добавлены зависимости, тестовый контур `pytest`, линтер `ruff`, `.env.example`, `render.yaml`.
+- Реальный `data/pk_list.json` подключён локально и используется сервисом, но не должен коммититься без отдельного разрешения.
 
-**Команды проверки:**
+### Инструменты агента
+
+- `POST /tools/parse_offer` парсит КП из текста или Excel.
+- `POST /tools/search_esklp` ищет кандидатов ЕСКЛП по торговому наименованию.
+- `POST /tools/match_pk` сопоставляет SKU с ПK, использует fuzzy-логику и LLM fallback.
+- `POST /tools/upload_base` загружает базовую Excel-выгрузку.
+- `POST /tools/build_excel` собирает итоговый Excel и отдаёт `download_url`.
+- `GET/POST /tools/pk_list` возвращает статический список ПK.
+
+### ЕСКЛП
+
+- `EsklpLookup` читает упрощённые Excel-файлы ЕСКЛП с одной строкой заголовков, без `skiprows`.
+- `tn_smnn_*.xlsx` читается по колонкам: `Торговое наименование`, `Код узла СМНН`, `Стандартизованное МНН`, `Стандартизованная лекарственная форма`, дозировка.
+- `esklp_smnn_*.xlsx` читается по колонкам: `Код узла СМНН`, `Наименование ФТГ`, `код АТХ`, `Наименование`.
+- `esklp_tn` и `esklp_smnn` связываются через нормализованный ключ СМНН, устойчивый к пробелам, неразрывным пробелам и суффиксу `.0`.
+- `search_esklp` возвращает `mnn`, `form`, `dosage`, `smnn_code`, `atx_code`, `atx_name`, `ftg_name`, `score`.
+- Проверка на реальной локальной папке `esklp_20260507_excel_00001`: 22 236 строк, `Ибупрофен` находится с `M01AE01`, `Ибупрофен`, `НПВП`.
+
+### Render/admin endpoints
+
+- Добавлен `POST /admin/upload_esklp` с защитой `X-Admin-Token` из `ADMIN_TOKEN`.
+- Добавлен `POST /admin/reload_esklp`: сразу возвращает `{"status":"loading"}`, загрузка идёт в фоне.
+- Добавлен `GET /admin/esklp_status`: показывает `ESKLP_DIR`, список `.xlsx`, `esklp_tn_rows`, `status`, `error`, `sample`.
+- `EsklpLookup` закреплён как singleton на процесс; reload атомарно подменяет экземпляр после успешной загрузки.
+- Скрипт `scripts/upload_esklp.py` загружает локальные `.xlsx` из `ESKLP_DIR` на Render.
+
+### Архитектурные решения
+
+- `D-007` зафиксировано в `DECISIONS.md`: в LLM-контекст для `match_pk` передаются АТХ и ФТГ из `esklp_smnn`, чтобы различать препараты с одинаковым веществом в разных областях.
+
+---
+
+## ЧТО ЗАБЛОКИРОВАНО
+
+Нет активных блокеров в `feature_list.json`.
+
+Операционный риск: после каждого деплоя Render нужно вызвать `/admin/reload_esklp`, если файлы ЕСКЛП уже загружены на диск, чтобы singleton подхватил актуальные данные.
+
+---
+
+## ПРОВЕРКИ
 
 ```powershell
-pip install -r requirements.txt; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; python -c "import fastapi, pandas, openpyxl, duckdb, openai, rapidfuzz; print('OK')"
-pytest
+python -m pytest
 ruff check .
+Invoke-WebRequest -UseBasicParsing https://new-agent-pk.onrender.com/health -TimeoutSec 30
 ```
 
-**Результат:** F-001 passing.
+Последний подтверждённый локальный результат:
+
+- `python -m pytest` - `16 passed`
+- `ruff check .` - `All checks passed`
+- Render `/health` - `{"status":"ok"}`
 
 ---
 
-
-### F-002 — FastAPI backend, GET /health
-
-- Проверен запуск `uvicorn app.main:app --port 8000`.
-- `GET /health` возвращает `{"status":"ok"}`.
-- `pytest` и `ruff check .` проходят.
-
-**Результат:** F-002 passing.
-
-### F-101 — Загрузка ЕСКЛП в DuckDB при старте
-
-- Реализован `EsklpLookup`: читает `tn_smnn_*.xlsx` из `ESKLP_DIR`, пропускает 4 строки шапки, нормализует колонки `trade_name`, `mnn`, `form`, `dosage`, `smnn_code`.
-- Данные загружаются в in-memory DuckDB таблицу `esklp_tn`.
-- Поиск работает через `rapidfuzz.token_sort_ratio`, возвращает top-3 с `score`.
-- Добавлены тестовые данные `data/esklp_test/tn_smnn_test.xlsx` и тест `tests/test_esklp_lookup.py`.
-
-**Результат:** F-101 passing.
-
-### F-102 — Загрузка списка 295 ПК из data/pk_list.json
-
-- Добавлен сервис `app.services.pk_list.load_pk_list()` с Pydantic-валидацией `{tg, tk, pk}`.
-- Подключён router `app.api.tools` в `app.main`.
-- Реализован `GET /tools/pk_list`, возвращающий локальный список из 295 ПК.
-- Реальный `data/pk_list.json` остаётся локальным и не коммитится.
-
-**Результат:** F-102 passing.
-
-### F-201 — POST /tools/search_esklp
-
-- Добавлен Pydantic-вход `SearchEsklpRequest`.
-- Реализован `POST /tools/search_esklp` поверх `EsklpLookup`.
-- Endpoint возвращает список кандидатов с `mnn`, `form`, `dosage`, `score`.
-- Добавлен тест инструмента через `TestClient`.
-
-**Результат:** F-201 passing.
-
-### F-203 — POST /tools/parse_offer
-
-- Реализован `POST /tools/parse_offer` для JSON `{text}` и multipart `file`/`text`.
-- Текстовый парсинг использует `parse_offer_text()` из скопированного модуля.
-- Excel-парсинг использует `read_offer_excel()` и `extract_offer_skus()`.
-- Добавлен тест парсинга текста через HTTP-инструмент.
-
-**Результат:** F-203 passing.
-
-### D-007 — ЕСКЛП АТХ/ФТГ для match_pk
-
-- Зафиксировано архитектурное решение в `DECISIONS.md`.
-- `EsklpLookup` дополнительно читает `esklp_smnn_*.xlsx`, выбирает рабочий лист `esklp_smnn_*` и загружает DuckDB-таблицу `esklp_smnn`.
-- `esklp_tn` связывается с `esklp_smnn` по `smnn_code`; `search()` возвращает `atx_code`, `atx_name`, `ftg_name`.
-- Добавлены тестовые фикстуры `esklp_smnn_test.xlsx` в `tests/fixtures/esklp_test/` и `data/esklp_test/`.
-- `/tools/match_pk` принимает и передаёт LLM поля АТХ/ФТГ вместе с МНН, формой и дозировкой.
-
-### F-202 — POST /tools/match_pk
-
-- Добавлен сервис `pk_matcher.py` для подбора ПК по SKU и справочнику 295 ПК.
-- Реализован `POST /tools/match_pk`.
-- При высокой уверенности используется fuzzy/точное попадание, при низкой — `DeepSeekLLMClient` с полным списком ПК и классификацией ЕСКЛП.
-- Тест покрывает лекарство с МНН, БАД без МНН и медизделие с mock LLM.
-
-**Результат:** F-202 passing.
-
-### F-205 — POST /tools/upload_base
-
-- Добавлен in-memory store `app.services.base_store` для основной Excel-выгрузки.
-- Реализован `POST /tools/upload_base`: multipart Excel → `{file_id, rows, columns_ok, missing_columns}`.
-- Валидируются обязательные колонки базовой выгрузки.
-- Добавлен HTTP-тест загрузки `tests/fixtures/base_sample.xlsx`.
-
-**Результат:** F-205 passing.
-
-### F-204 — POST /tools/build_excel
-
-- Добавлен in-memory store `app.services.result_store` для собранных Excel-файлов.
-- Реализован `POST /tools/build_excel`: `{base_file_id, matched_skus}` → `{download_url}`.
-- Реализован `GET /tools/download/{file_id}` для скачивания результата.
-- Сборка использует существующий `excel_builder.build_result_workbook_bytes()`.
-- Добавлен тест загрузки базы, сборки Excel и скачивания валидного `.xlsx`.
-
-**Результат:** F-204 passing.
-
-### F-301/F-302 — OpenAPI схема и описания инструментов
-
-- OpenAPI содержит все `/tools/*` endpoint'ы.
-- Все `/tools/*` paths проходят проектную проверку `post.description`.
-- Для `GET /tools/pk_list` добавлен POST-алиас, чтобы MCP/OpenAPI verification видел описание.
-- Download endpoint вынесен в `/downloads/{file_id}`, чтобы служебное скачивание не попадало в `/tools/*` проверку.
-
-**Результат:** F-301/F-302 passing.
-
-### F-401 — E2E parse → search_esklp → match_pk → build_excel
-
-- Добавлен `tests/test_e2e.py::test_full_pipeline`.
-- E2E прогоняет 5 SKU через `/tools/parse_offer`, `/tools/search_esklp`, `/tools/match_pk`, `/tools/upload_base`, `/tools/build_excel` и скачивание результата.
-- Проверяется, что минимум 3 из 5 SKU получают auto-match и итоговый Excel открывается через `openpyxl`.
-- LLM в E2E замокан, потому что `DEEPSEEK_API_KEY` не является локальным обязательным секретом.
-
-**Результат:** F-401 passing.
-
-### F-402 — Финальный чеклист
-
-- Локально `pytest` и `ruff check .` проходят.
-- Публичный Render URL не проверен: зависит от F-003 и `RENDER_URL`.
-
-**Результат:** F-402 blocked до деплоя Render.
 ## СЛЕДУЮЩИЙ ШАГ
 
-**Задача:** F-003 — Деплой на Render, публичный URL
+После деплоя текущего коммита на Render:
 
-**Что сделать:**`n1. Создать Web Service на Render.`n2. Подставить публичный `RENDER_URL`.`n3. Проверить `GET https://<RENDER_URL>/health`.
-
----
-
-## БЛОКЕРЫ
-
-| ID | Описание | Статус |
-|---|---|---|
-| B-001 | `pk_list.json` с реальными 295 ПК | ✅ Файл предоставлен локально, не коммитить без явного разрешения |
-| B-002 | Реальные файлы ЕСКЛП | ✅ Папка предоставлена локально, не коммитить |
-| B-003 | `DEEPSEEK_API_KEY` на Render | Нужно настроить до F-003 |
-| B-004 | `RENDER_URL` | Подставить после деплоя F-003 |
+1. Вызвать `POST /admin/reload_esklp`.
+2. Проверить `GET /admin/esklp_status`: `status=ready`, `esklp_tn_rows=22236`, `sample` заполнен.
+3. Проверить `POST /tools/search_esklp` с `{"trade_name":"Ибупрофен"}`.
 
 ---
 
 ## ЖУРНАЛ СЕССИЙ
 
-| Сессия | Дата | Завершено | Начато | Итог |
-|---|---|---|---|---|
-| 1 | 2026-05-27/28 | F-001, F-002, F-101, F-102, F-201, F-203, F-202, F-205, F-204, F-301, F-302, F-401 | F-001 | Локальная цепочка готова, D-007 добавил АТХ/ФТГ, F-003/F-402 ждут Render URL |
+| Сессия | Дата | Завершено | Итог |
+|---|---|---|---|
+| 1 | 2026-05-27/28 | F-001, F-002, F-101, F-102, F-201, F-203, F-202, F-205, F-204, F-301, F-302, F-401 | Локальная цепочка готова, D-007 добавил АТХ/ФТГ |
+| 2 | 2026-05-29 | F-003, F-402, admin upload/reload/status, Render upload flow, simplified ESKLP parser | Render health проверен, ЕСКЛП грузится асинхронно, lookup singleton, parser читает упрощённые Excel по заголовкам |
+| 3 | 2026-05-29 | Обновление обвязки, фиксация статусов, fix join в `esklp_lookup.py` | Все задачи в `passing`; join по СМНН нормализован |
 
 ---
 
-*Обновлять в конце каждой сессии*
+*Обновлять в конце каждой сессии и перед сменой архитектурного состояния.*
