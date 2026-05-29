@@ -79,6 +79,14 @@ def test_esklp_status_returns_dir_files_and_rows(monkeypatch):
     assert data["esklp_dir"] == "data/esklp_test"
     assert data["files"] == ["esklp_smnn_test.xlsx", "tn_smnn_test.xlsx"]
     assert data["esklp_tn_rows"] == 5
+    assert data["columns"] == [
+        "trade_name",
+        "mnn",
+        "form",
+        "dosage",
+        "smnn_code",
+        "smnn_join_key",
+    ]
     assert data["status"] == "ready"
     assert data["error"] is None
     assert len(data["sample"]) == 3

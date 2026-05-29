@@ -63,6 +63,7 @@ def esklp_status(
     esklp_dir_value = os.getenv("ESKLP_DIR")
     files: list[str] = []
     sample: list[dict[str, object]] = []
+    columns: list[str] = []
     load_status = _get_esklp_load_status()
     esklp_tn_rows = load_status["rows"]
 
@@ -75,12 +76,14 @@ def esklp_status(
             lookup = get_esklp_lookup()
             if esklp_tn_rows is None:
                 esklp_tn_rows = _count_esklp_tn_rows(lookup)
+            columns = _esklp_tn_columns(lookup)
             sample = _sample_esklp_tn(lookup)
 
     return {
         "esklp_dir": esklp_dir_value,
         "files": files,
         "esklp_tn_rows": esklp_tn_rows,
+        "columns": columns,
         "status": load_status["status"],
         "error": load_status["error"],
         "sample": sample,
@@ -125,6 +128,11 @@ def _sample_esklp_tn(lookup: object) -> list[dict[str, object]]:
         """
     ).fetch_df()
     return rows.where(rows.notna(), None).to_dict("records")
+
+
+def _esklp_tn_columns(lookup: object) -> list[str]:
+    rows = lookup.connection.execute("DESCRIBE esklp_tn").fetch_df()
+    return rows["column_name"].astype(str).tolist()
 
 
 def _get_esklp_load_status() -> dict[str, object]:
