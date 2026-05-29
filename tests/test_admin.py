@@ -33,3 +33,17 @@ def test_upload_esklp_saves_file(monkeypatch, tmp_path):
     saved_path = tmp_path / "esklp_smnn_test.xlsx"
     assert data["path"] == str(saved_path)
     assert saved_path.read_bytes() == b"xlsx-bytes"
+
+def test_upload_esklp_requires_esklp_dir(monkeypatch):
+    monkeypatch.setenv("ADMIN_TOKEN", "secret")
+    monkeypatch.delenv("ESKLP_DIR", raising=False)
+    client = TestClient(app)
+
+    response = client.post(
+        "/admin/upload_esklp",
+        headers={"X-Admin-Token": "secret"},
+        files={"file": ("tn_smnn_test.xlsx", b"content", "application/octet-stream")},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "ESKLP_DIR is not configured"

@@ -37,7 +37,11 @@ async def upload_esklp(
     if not filename:
         raise HTTPException(status_code=400, detail="Filename is required")
 
-    esklp_dir = Path(os.getenv("ESKLP_DIR", "data/esklp_test"))
+    esklp_dir_value = os.getenv("ESKLP_DIR")
+    if not esklp_dir_value:
+        raise HTTPException(status_code=503, detail="ESKLP_DIR is not configured")
+
+    esklp_dir = Path(esklp_dir_value)
     esklp_dir.mkdir(parents=True, exist_ok=True)
     destination = esklp_dir / filename
     destination.write_bytes(await file.read())
