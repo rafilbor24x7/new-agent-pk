@@ -1,4 +1,7 @@
-from fastapi import FastAPI
+import os
+from pathlib import Path
+
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.tools import router as tools_router
@@ -17,3 +20,26 @@ app.include_router(tools_router)
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/admin/upload_esklp")
+async def upload_esklp(
+    file: UploadFile = File(...),
+    x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
+) -> dict[str, str]:
+    admin_token = os.getenv("ADMIN_TOKEN")
+    if not admin_token:
+        raise HTTPException(status_code=503, detail="ADMIN_TOKEN is not configured")
+    if x_admin_token != admin_token:
+        raise HTTPException(status_code=401, detail="Invalid admin token")
+
+    filename = Path(file.filename or "").name
+    if not filename:
+        raise HTTPException(status_code=400, detail="Filename is required")
+
+    esklp_dir = Path(os.getenv("ESKLP_DIR", "data/esklp_test"))
+    esklp_dir.mkdir(parents=True, exist_ok=True)
+    destination = esklp_dir / filename
+    destination.write_bytes(await file.read())
+
+    return {"saved": filename, "path": str(destination)}
