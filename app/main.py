@@ -41,6 +41,8 @@ async def upload_esklp(
     filename = Path(file.filename or "").name
     if not filename:
         raise HTTPException(status_code=400, detail="Filename is required")
+    if Path(filename).suffix.casefold() != ".xlsx":
+        raise HTTPException(status_code=400, detail="Only .xlsx files are supported")
 
     esklp_dir_value = os.getenv("ESKLP_DIR")
     if not esklp_dir_value:

@@ -194,7 +194,9 @@ def _read_smnn_file(path: Path) -> pd.DataFrame:
 
 
 def _read_esklp_excel(path: Path) -> pd.DataFrame:
-    return pd.read_excel(path, dtype=str)
+    if path.suffix.casefold() != ".xlsx":
+        raise ValueError(f"{path.name}: only .xlsx files are supported")
+    return pd.read_excel(path, engine="openpyxl", dtype=str)
 
 
 def _require_columns(path: Path, df: pd.DataFrame, columns: Any) -> None:

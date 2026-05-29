@@ -37,6 +37,21 @@ def test_upload_esklp_saves_file(monkeypatch, tmp_path):
     assert saved_path.read_bytes() == b"xlsx-bytes"
 
 
+def test_upload_esklp_rejects_non_xlsx(monkeypatch, tmp_path):
+    monkeypatch.setenv("ADMIN_TOKEN", "secret")
+    monkeypatch.setenv("ESKLP_DIR", str(tmp_path))
+    client = TestClient(app)
+
+    response = client.post(
+        "/admin/upload_esklp",
+        headers={"X-Admin-Token": "secret"},
+        files={"file": ("tn_smnn_test.xls", b"content", "application/vnd.ms-excel")},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Only .xlsx files are supported"
+
+
 def test_upload_esklp_requires_esklp_dir(monkeypatch):
     monkeypatch.setenv("ADMIN_TOKEN", "secret")
     monkeypatch.delenv("ESKLP_DIR", raising=False)
